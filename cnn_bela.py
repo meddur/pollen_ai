@@ -3,7 +3,11 @@
 # =============================================================================
 
 import tensorflow as tf
+
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+
 tf.enable_eager_execution() #Parce que TF version <2.0 
+
 import numpy as np #funky array stuff
 import os #permet os based operations/querries
 import glob #What does it do?
@@ -12,6 +16,7 @@ from skimage.transform import resize #self explanatory package=scikit-image
 from skimage.exposure import rescale_intensity #Why is this necessary?
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
+
 import itertools # Confusion Matrix
 from sklearn.metrics import confusion_matrix # Confusion Matrix
 import random #randomize files within directory
@@ -85,9 +90,9 @@ else: path_folder_image = "/home/paleolab/Documents/python/CNN_BELA/pollen_datas
 
 #Parameters
 
-max_samples = 660
+max_samples = 100
 plot_that_shit = False
-n_epochs = 100
+n_epochs = 20
 choose_random = 20
 ac_function = "softmax"
 batch_size = 32
@@ -99,7 +104,7 @@ simple_model = False
 will_train = True        # False = load an already existing model
 will_save = True
 
-checkpoint_no ="network_test_5x5"
+checkpoint_no ="test_123"
 checkpoint_path = checkpoint_no+"/cp-{epoch:04d}.ckpt"
 #checkpoint_path = checkpoint_no+"/cp-0185.ckpt"
 
@@ -115,7 +120,7 @@ if will_save == True and os.path.exists(os.getcwd()+"/"+checkpoint_no) == True:
         for f in directory_wipe:         
             os.remove(f)
     
-notes=" doubled starting outputfilters (16->32etc)"
+notes=" "
 
 notes_ckpt = "Checkpoint : "+checkpoint_no+"\nResolution : " + str(resolution) + \
     "\nClasses : " + str(classes_select) + "\nMax samples : " + str(max_samples) + \
@@ -270,7 +275,7 @@ print("reshape")
 
 #Split images (var images), labels (var cls) and filenames (var filenames) into train set and test set
 train_images, test_images, train_labels, test_labels, train_filenames, \
-    test_filenames = train_test_split(images, cls, filenames, test_size=0.15, random_state=choose_random)
+    test_filenames = train_test_split(images, cls, filenames, test_size=0.2, random_state=choose_random)
 
     #removed cls_mapping split because I haven't figured out what it does yet
     #random_state = int -> CHANGE THIS
@@ -285,6 +290,33 @@ opt = tf.keras.optimizers.Adam()
 
 
 print("Images splitted; optimizer")
+
+#%%
+# Create data generator for on the fly augmentations
+# cval = 0 -> new pixels are black - useful for shifts
+datagen = ImageDataGenerator(horizontal_flip=True, vertical_flip=True,
+                               fill_mode= 'constant', cval = 0, shear_range = 0.15,
+                                #brightness_range = [0.8, 1.0,],
+                               # zoom_range = [0.7, 1.0],
+                              # height_shift_range = 0.1, width_shift_range=0.1, shear_range = 0.15,
+                              #rotation_range = 15,
+                             )
+datagen.fit(train_images)
+#Shear & flips, otherwise over fitting
+#Rotation range 15 if using simple model pour tricolp sigmoid
+
+
+# #Creates our batch of one image
+# pic = datagen.flow(train_images, batch_size =1)
+# plt.figure(figsize=(10,8))
+# #Plots our figures
+# for i in range(1,4):
+#   plt.subplot(1, 3, i)
+#   batch = pic.next()
+#   image_ = batch[0].astype('uint8')
+#   plt.imshow(image_)
+# plt.show()
+
 #%%
 
 
@@ -373,10 +405,13 @@ cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path, save_
 if will_train == True:
     if will_save == True:
         print('TRAINING AND SAVING')
-        pollen_cnn = model.fit(train_images, train_labels, epochs=n_epochs, batch_size = batch_size, callbacks=[cp_callback])
+        pollen_cnn = model.fit_generator(datagen.flow(train_images, train_labels, batch_size=batch_size), 
+                                          steps_per_epoch=len(train_images) / batch_size, epochs=n_epochs, 
+                                          callbacks=[cp_callback])
     else:
         print('TRAINING')
-        pollen_cnn = model.fit(train_images, train_labels, epochs=n_epochs, batch_size = batch_size)
+        pollen_cnn = model.fit_generator(datagen.flow(train_images, train_labels, batch_size=batch_size), 
+                                          steps_per_epoch=len(train_images) / batch_size, epochs=n_epochs)
     loss = pollen_cnn.history['loss']
     accuracy = pollen_cnn.history['acc']
     plt.plot(loss)
@@ -392,18 +427,6 @@ else:
     print("LOADING CHECKPOINT " + latest)
     pollen_cnn = model.load_weights(latest)
     
-
-
-#%%
-
-# loss = pollen_cnn.history['loss']
-# accuracy = pollen_cnn.history['acc']
-# plt.plot(loss)
-# plt.plot(accuracy)
-# plt.legend(['loss', 'accuracy'])
-# plt.show()
-
-# print("Loss+accuracy plotted")
 
 #%%
 #Test the model w/ predictions on the test set
