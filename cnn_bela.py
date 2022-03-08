@@ -101,22 +101,22 @@ simple_model = False
 
 #Checkpoint setup
 
-will_train = True        # False = load an already existing model
-will_save = True
+will_train = False        # False = load an already existing model
+will_save = False
 
 checkpoint_no ="test_123"
-checkpoint_path = checkpoint_no+"/cp-{epoch:04d}.ckpt"
+checkpoint_path = "checkpoints/"+checkpoint_no+"/cp-{epoch:04d}.ckpt"
 #checkpoint_path = checkpoint_no+"/cp-0185.ckpt"
 
 
 
-if will_save == True and os.path.exists(os.getcwd()+"/"+checkpoint_no) == True:
+if will_save == True and os.path.exists(os.getcwd()+"checkpoints/"+checkpoint_no) == True:
 
     overwrite_check = input("Checkpoint already exists. Overwrite (y/n)?")
     if overwrite_check != "y": 
         sys.exit('Error : Checkpoint folder already exists. Aborting')
     else:
-        directory_wipe = glob.glob(os.getcwd()+"/"+checkpoint_no+"/*")
+        directory_wipe = glob.glob(os.getcwd()+"checkpoints/"+checkpoint_no+"/*")
         for f in directory_wipe:         
             os.remove(f)
     
@@ -422,8 +422,8 @@ if will_train == True:
     print("Loss+accuracy plotted")
 
 else:
-    latest = tf.train.latest_checkpoint(checkpoint_no)
-    # latest = (checkpoint_no+"/cp-0190.ckpt") #Checkpoint en particulier?
+    latest = tf.train.latest_checkpoint("checkpoints/"+checkpoint_no)
+    # latest = ("checkpoints/"+checkpoint_no+"/cp-0190.ckpt") #Checkpoint en particulier?
     print("LOADING CHECKPOINT " + latest)
     pollen_cnn = model.load_weights(latest)
     
@@ -464,7 +464,7 @@ if will_save == True and will_train == True:
             "\nTest accuracy : "+str(test_acc)+"\nMin. training loss : "+str(min(loss))+\
                 " at epoch n "+str(1+(loss.index(min(loss))))+"\nMax accuracy : "+\
                     str(max(accuracy))+" at epoch n "+str(1+(accuracy.index(max(accuracy))))
-    file1= open(checkpoint_no+"/"+"notes_"+checkpoint_no+".txt", "w")
+    file1= open("checkpoints/"+checkpoint_no+"/"+"notes_"+checkpoint_no+".txt", "w")
     file1.write(notes_ckpt)
     file1.close()
     print("Model saved") 
