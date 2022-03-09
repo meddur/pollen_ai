@@ -17,6 +17,7 @@ from sklearn.metrics import confusion_matrix # Confusion Matrix
 import random #randomize files within directory
 import sys
 
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.applications import VGG16 #utilisent RESNET_18 Olsson et al 
 from tensorflow.keras import Model
 #from tensorflow.keras.applications.vgg16 import preprocess_input
@@ -94,19 +95,19 @@ else: path_folder_image = "/home/paleolab/Documents/python/CNN_BELA/pollen_datas
 
 max_samples = 660
 plot_that_shit = False
-n_epochs = 1000
+n_epochs = 200
 choose_random = 20
 ac_function = "softmax"
 batch_size = 32
 
-simple_model = True
+simple_model = False
 
 #Checkpoint setup
 
 will_train = True        # False = load an already existing model
 will_save = True
 
-checkpoint_no ="TRANSFER_BGR_1000"
+checkpoint_no ="TRANSFER_test3"
 checkpoint_path = checkpoint_no+"/cp-{epoch:04d}.ckpt"
 #checkpoint_path = checkpoint_no+"/cp-0185.ckpt"
 
@@ -301,14 +302,28 @@ opt = tf.keras.optimizers.Adam()
 
 
 print("Images splitted; optimizer")
+#%%
 
+datagen = ImageDataGenerator(horizontal_flip=True, vertical_flip=True,
+                               fill_mode= 'constant', cval = 0, shear_range = 0.15,
+                                #brightness_range = [0.8, 1.0,],
+                               # zoom_range = [0.7, 1.0],
+                              # height_shift_range = 0.1, width_shift_range=0.1, shear_range = 0.15,
+                              #rotation_range = 15,
+                             )
+datagen.fit(train_images)
 # %%
 # ======================
 # Transfer learning
 # ======================
 
 print("Loading Network")
-base_model = VGG16(input_shape = (resolution, resolution, 3), weights = "imagenet", include_top=False)  
+
+
+# base_model = VGG16(input_shape = (resolution, resolution, 3), weights = "imagenet", include_top=False)  
+base_model = tf.keras.applications.VGG16(input_shape = (resolution, resolution, 3),
+                                         include_top = False,
+                                         weights = 'imagenet')
 
 
 print(base_model.summary())
@@ -318,7 +333,7 @@ print(base_model.summary())
 # The forward propagation stops at the max-pooling layer - We will treat the output of the max-pooling layer as a list of features, also known as a feature vector
 
 #Lock layers
-for layer in base_model.layers:
+for layer in base_model.layers[0:3]:
     layer.trainable = False
 
 
@@ -326,34 +341,41 @@ for layer in base_model.layers:
 #please experiment
 
 #Add a classificaiton head
-model = tf.keras.Sequential([
-    base_model,
-    tf.keras.layers.GlobalAveragePooling2D(),
-    tf.keras.layers.Dense(len(labels), activation = 'softmax') #Try sigmoid
-    ])
+# model = tf.keras.Sequential()
+# model.add(base_model.layers[3])
+# model.add(tf.keras.layers.Flatten())
+# model.add(tf.keras.layers.Dropout(0.5))
+# model.add(tf.keras.layers.Dense(len(labels), activation = 'softmax')) #Try sigmoid
+
+
+
 
 #Compile the model
 
-model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
-model.summary()
+# model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 
 
 
 
-#Input shape de la première layer du modèle normal = (None, 128, 128, 1)
+# Input shape de la première layer du modèle normal = (None, 128, 128, 1)
 
-# #Add a dropout rate
-# prediction_model = tf.keras.layers.Dropout(0.2)(prediction_model)
+# vgg16_model = VGG16(input_shape = (resolution, resolution, 3), weights = "imagenet", include_top=False)  
 
-# #Add a final softmax layer for classification
-# prediction_model = tf.keras.layers.Dense (3, activation = ac_function)(prediction_model)
+# base_model = Model(input=vgg16_model.input,
+#                    output=vgg16_model.get_layer("block5_pool").output)
 
+# # (3) attach a new top layer
+# base_out = base_model.output
+# top_fc1 = tf.keras.layers.Flatten()(base_out) 
+# top_fc2 = tf.keras.layers.Dropout(0.5)(top_fc1)
+# top_preds = tf.keras.layers.Dense(1, activation="softmax")(top_fc2)
 
+# # (4) freeze weights until the last but one convolution layer (block4_pool)
+# for layer in base_model.layers[0:4]:
+#     layer.trainable = False
 
-# model = Model(pre_trained_model.input, prediction_model)
-
-
-
+# # (5) create new hybrid model
+# model = Model(input=base_model.input, output=top_preds)
 
 
 
@@ -362,73 +384,76 @@ model.summary()
 
 
 
-    #16 -> Number of output filters in the convolution
-    #(3,3) -> Kernel size (Height and Width of the 2d convolution window)
-    #padding = same -> for each filter (16,32 etc) there is an output channel
-# if simple_model == True :
-#   model = tf.keras.models.Sequential()
-#   model.add(tf.keras.layers.Conv2D(16, (3,3), input_shape=(resolution, resolution, 1), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.MaxPooling2D())
-#   model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.MaxPooling2D())
-#   model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.MaxPooling2D())
-#   model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.MaxPooling2D())
-#   model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.MaxPooling2D())                                        
-#   model.add(tf.keras.layers.Flatten())
-#   model.add(tf.keras.layers.Dropout(0.5,seed=7))
-#   model.add(tf.keras.layers.Dense(512, activation='relu'))
-#   model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))    
+    # 16 -> Number of output filters in the convolution
+    # (3,3) -> Kernel size (Height and Width of the 2d convolution window)
+    # padding = same -> for each filter (16,32 etc) there is an output channel
+if simple_model == True :
+  model = tf.keras.models.Sequential()
+  model.add(tf.keras.layers.Conv2D(16, (3,3), input_shape=(resolution, resolution, 1), activation='relu', padding='same'))
+  model.add(tf.keras.layers.MaxPooling2D())
+  model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
+  model.add(tf.keras.layers.MaxPooling2D())
+  model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
+  model.add(tf.keras.layers.MaxPooling2D())
+  model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
+  model.add(tf.keras.layers.MaxPooling2D())
+  model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))
+  model.add(tf.keras.layers.MaxPooling2D())                                        
+  model.add(tf.keras.layers.Flatten())
+  model.add(tf.keras.layers.Dropout(0.5,seed=7))
+  model.add(tf.keras.layers.Dense(512, activation='relu'))
+  model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))    
 
-# elif resolution == 64 :
-#   model = tf.keras.models.Sequential()
-#   model.add(tf.keras.layers.Conv2D(16, (3,3), input_shape=(resolution, resolution, 1), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.Conv2D(16, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.MaxPooling2D())
-#   model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.MaxPooling2D())
-#   model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.MaxPooling2D())
-#   model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.MaxPooling2D())
-#   model.add(tf.keras.layers.Flatten())
-#   model.add(tf.keras.layers.Dropout(0.5,seed=7))
-#   model.add(tf.keras.layers.Dense(512, activation='relu'))
-#   model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
+elif resolution == 64 :
+  model = tf.keras.models.Sequential()
+  model.add(tf.keras.layers.Conv2D(16, (3,3), input_shape=(resolution, resolution, 1), activation='relu', padding='same'))
+  model.add(tf.keras.layers.Conv2D(16, (3,3), activation='relu', padding='same'))
+  model.add(tf.keras.layers.MaxPooling2D())
+  model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
+  model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
+  model.add(tf.keras.layers.MaxPooling2D())
+  model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
+  model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
+  model.add(tf.keras.layers.MaxPooling2D())
+  model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
+  model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
+  model.add(tf.keras.layers.MaxPooling2D())
+  model.add(tf.keras.layers.Flatten())
+  model.add(tf.keras.layers.Dropout(0.5,seed=7))
+  model.add(tf.keras.layers.Dense(512, activation='relu'))
+  model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
   
-# elif resolution == 128 :
-#   model = tf.keras.models.Sequential()
-#   model.add(tf.keras.layers.Conv2D(16, (3,3), input_shape=(resolution, resolution, 1), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.Conv2D(16, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.MaxPooling2D())
-#   model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.MaxPooling2D())
-#   model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.MaxPooling2D())
-#   model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.MaxPooling2D())
-#   model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
-#   model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
-#   model.add(tf.keras.layers.MaxPooling2D())    
-#   model.add(tf.keras.layers.Flatten())
-#   model.add(tf.keras.layers.Dropout(0.5,seed=7))
-#   model.add(tf.keras.layers.Dense(512, activation='relu'))
-#   model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
+elif resolution == 128 :
+   model = tf.keras.models.Sequential()
+   model.add(base_model.layers[3])
+   # model.add(tf.keras.layers.Flatten())
+   # model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
+   # model.add(tf.keras.layers.Conv2D(16, (3,3), input_shape=(resolution, resolution, 1), activation='relu', padding='same'))
+   model.add(tf.keras.layers.Conv2D(16, (3,3), activation='relu', padding='same'))
+   model.add(tf.keras.layers.MaxPooling2D())
+   model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
+   model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
+   model.add(tf.keras.layers.MaxPooling2D())
+   model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
+   model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
+   model.add(tf.keras.layers.MaxPooling2D())
+   model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
+   model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
+   model.add(tf.keras.layers.MaxPooling2D())
+   model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
+   model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
+   model.add(tf.keras.layers.MaxPooling2D())    
+   model.add(tf.keras.layers.Flatten())
+   model.add(tf.keras.layers.Dropout(0.5,seed=7))
+   model.add(tf.keras.layers.Dense(512, activation='relu'))
+   model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
 
 
 # model.count_params()
-# model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
-#         # Loss function: Measures how accurate the model is during training. You want to minimize this function to 'steer' the model in its right direction        
-#         # Optimizer: How the model is updated based on the data it sees and its loss function
-#         # Metrics: Used to monitor the training and testing steps. 'accuracy' = fraction of the images that are correctly classified
+model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
+        # Loss function: Measures how accurate the model is during training. You want to minimize this function to 'steer' the model in its right direction        
+        # Optimizer: How the model is updated based on the data it sees and its loss function
+        # Metrics: Used to monitor the training and testing steps. 'accuracy' = fraction of the images that are correctly classified
 
 # model.summary()
 
@@ -447,10 +472,13 @@ cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path, save_
 if will_train == True:
     if will_save == True:
         print('TRAINING AND SAVING')
-        pollen_cnn = model.fit(train_images, train_labels, epochs=n_epochs, batch_size = batch_size, callbacks=[cp_callback])
+        pollen_cnn = model.fit_generator(datagen.flow(train_images, train_labels, batch_size=batch_size), 
+                                          steps_per_epoch=len(train_images) / batch_size, epochs=n_epochs, 
+                                          callbacks=[cp_callback])
     else:
         print('TRAINING')
-        pollen_cnn = model.fit(train_images, train_labels, epochs=n_epochs, batch_size = batch_size)
+        pollen_cnn = model.fit_generator(datagen.flow(train_images, train_labels, batch_size=batch_size), 
+                                          steps_per_epoch=len(train_images) / batch_size, epochs=n_epochs)
     loss = pollen_cnn.history['loss']
     accuracy = pollen_cnn.history['acc']
     plt.plot(loss)
@@ -461,11 +489,12 @@ if will_train == True:
     print("Loss+accuracy plotted")
 
 else:
-    latest = tf.train.latest_checkpoint(checkpoint_no)
-    # latest = (checkpoint_no+"/cp-0190.ckpt") #Checkpoint en particulier?
+    latest = tf.train.latest_checkpoint("checkpoints/"+checkpoint_no)
+    # latest = ("checkpoints/"+checkpoint_no+"/cp-0190.ckpt") #Checkpoint en particulier?
     print("LOADING CHECKPOINT " + latest)
     pollen_cnn = model.load_weights(latest)
     
+
 
 
 #%%
