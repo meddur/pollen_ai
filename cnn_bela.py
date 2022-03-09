@@ -101,7 +101,7 @@ simple_model = False
 
 #Checkpoint setup
 
-will_train = False        # False = load an already existing model
+will_train = True        # False = load an already existing model
 will_save = False
 
 checkpoint_no ="test_123"
