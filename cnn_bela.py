@@ -90,9 +90,9 @@ else: path_folder_image = "/home/paleolab/Documents/python/CNN_BELA/pollen_datas
 
 #Parameters
 
-max_samples = 100
+max_samples = 660
 plot_that_shit = False
-n_epochs = 20
+n_epochs = 200
 choose_random = 20
 ac_function = "softmax"
 batch_size = 32
@@ -102,9 +102,9 @@ simple_model = False
 #Checkpoint setup
 
 will_train = True        # False = load an already existing model
-will_save = False
+will_save = True
 
-checkpoint_no ="test_123"
+checkpoint_no ="baseline_8_classes"
 checkpoint_path = "checkpoints/"+checkpoint_no+"/cp-{epoch:04d}.ckpt"
 #checkpoint_path = checkpoint_no+"/cp-0185.ckpt"
 
