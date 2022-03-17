@@ -4,6 +4,7 @@
 
 import tensorflow as tf
 tf.enable_eager_execution() #Parce que TF version <2.0 
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import numpy as np #funky array stuff
 import os #permet os based operations/querries
 import glob #What does it do?
@@ -92,9 +93,9 @@ else: path_folder_image = "/home/paleolab/Documents/python/CNN_BELA/pollen_datas
 
 #Parameters
 
-max_samples = 660
+max_samples = 60
 plot_that_shit = False
-n_epochs = 300
+n_epochs = 10
 choose_random = 20
 ac_function = "softmax"
 batch_size = 32
@@ -107,7 +108,7 @@ will_train = True        # False = load an already existing model
 will_save = True
 
 
-checkpoint_no ="TRANSFER_baseline_300"
+checkpoint_no ="test"
 checkpoint_path = "checkpoints/"+checkpoint_no+"/cp-{epoch:04d}.ckpt"
 #checkpoint_path = checkpoint_no+"/cp-0185.ckpt"
 
@@ -446,7 +447,7 @@ if resolution == 128 :
 
 
 # model.count_params()
-# model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
+model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 #         # Loss function: Measures how accurate the model is during training. You want to minimize this function to 'steer' the model in its right direction        
 #         # Optimizer: How the model is updated based on the data it sees and its loss function
 #         # Metrics: Used to monitor the training and testing steps. 'accuracy' = fraction of the images that are correctly classified
