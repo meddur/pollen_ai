@@ -94,11 +94,7 @@ else: path_folder_image = "/home/paleolab/Documents/python/CNN_BELA/pollen_datas
 
 max_samples = 660
 plot_that_shit = False
-<<<<<<< Updated upstream
-n_epochs = 1000
-=======
 n_epochs = 300
->>>>>>> Stashed changes
 choose_random = 20
 ac_function = "softmax"
 batch_size = 32
@@ -110,13 +106,9 @@ simple_model = True
 will_train = True        # False = load an already existing model
 will_save = True
 
-<<<<<<< Updated upstream
-checkpoint_no ="TRANSFER_BGR_1000"
-checkpoint_path = checkpoint_no+"/cp-{epoch:04d}.ckpt"
-=======
+
 checkpoint_no ="TRANSFER_baseline_300"
 checkpoint_path = "checkpoints/"+checkpoint_no+"/cp-{epoch:04d}.ckpt"
->>>>>>> Stashed changes
 #checkpoint_path = checkpoint_no+"/cp-0185.ckpt"
 
 
@@ -311,8 +303,7 @@ opt = tf.keras.optimizers.Adam()
 
 print("Images splitted; optimizer")
 
-<<<<<<< Updated upstream
-=======
+
 datagen = ImageDataGenerator(horizontal_flip=True, vertical_flip=True,
                                fill_mode= 'constant', cval = 0, shear_range = 0.15,
                                 #brightness_range = [0.8, 1.0,],
@@ -321,23 +312,20 @@ datagen = ImageDataGenerator(horizontal_flip=True, vertical_flip=True,
                               rotation_range = 45,
                              )
 datagen.fit(train_images)
->>>>>>> Stashed changes
+
 # %%
 # ======================
 # Transfer learning
 # ======================
 
 print("Loading Network")
-<<<<<<< Updated upstream
-base_model = VGG16(input_shape = (resolution, resolution, 3), weights = "imagenet", include_top=False)  
-=======
 
 
 # base_model = VGG16(input_shape = (resolution, resolution, 3), weights = "imagenet", include_top=False)  
 base_model = tf.keras.applications.VGG16(input_shape = (resolution, resolution, 3),
                                           include_top = False,
                                           weights = 'imagenet')
->>>>>>> Stashed changes
+
 
 
 print(base_model.summary())
@@ -430,30 +418,7 @@ model.summary()
 #   model.add(tf.keras.layers.Dense(512, activation='relu'))
 #   model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
   
-<<<<<<< Updated upstream
-# elif resolution == 128 :
-#   model = tf.keras.models.Sequential()
-#   model.add(tf.keras.layers.Conv2D(16, (3,3), input_shape=(resolution, resolution, 1), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.Conv2D(16, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.MaxPooling2D())
-#   model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.MaxPooling2D())
-#   model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.MaxPooling2D())
-#   model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.MaxPooling2D())
-#   model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
-#   model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
-#   model.add(tf.keras.layers.MaxPooling2D())    
-#   model.add(tf.keras.layers.Flatten())
-#   model.add(tf.keras.layers.Dropout(0.5,seed=7))
-#   model.add(tf.keras.layers.Dense(512, activation='relu'))
-#   model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
-=======
-elif resolution == 128 :
+if resolution == 128 :
    model = tf.keras.models.Sequential()
    model.add(base_model.layers[3])
    # model.add(tf.keras.layers.Flatten())
@@ -477,7 +442,7 @@ elif resolution == 128 :
    model.add(tf.keras.layers.Dropout(0.5,seed=7))
    model.add(tf.keras.layers.Dense(512, activation='relu'))
    model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
->>>>>>> Stashed changes
+
 
 
 # model.count_params()
