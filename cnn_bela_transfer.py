@@ -32,7 +32,7 @@ print("TensorFlow version " + tf.__version__)
 # Settings
 # =============================================================================
 
-resolution = 128              
+resolution = 128             
 presence = True                # True = classes included in classes_select WILL be included in the model - False = WILL NOT be included
 classes_select = [
                      "abb_pic_mix",
@@ -93,14 +93,14 @@ else: path_folder_image = "/home/paleolab/Documents/python/CNN_BELA/pollen_datas
 
 #Parameters
 
-max_samples = 60
+max_samples = 660
 plot_that_shit = False
-n_epochs = 10
+n_epochs = 250
 choose_random = 20
 ac_function = "softmax"
 batch_size = 32
 
-simple_model = True
+simple_model = False
 
 #Checkpoint setup
 
@@ -108,13 +108,14 @@ will_train = True        # False = load an already existing model
 will_save = True
 
 
-checkpoint_no ="test"
+checkpoint_no ="Transfer_lyr3_augs"
 checkpoint_path = "checkpoints/"+checkpoint_no+"/cp-{epoch:04d}.ckpt"
 #checkpoint_path = checkpoint_no+"/cp-0185.ckpt"
 
 
+# os.path.exists(os.getcwd()+"checkpoints/"+checkpoint_no)
 
-if will_save == True and os.path.exists(os.getcwd()+"checkpoints/"+checkpoint_no) == True:
+if will_save == True and os.path.exists(os.getcwd()+"/checkpoints/"+checkpoint_no) == True:
 
     overwrite_check = input("Checkpoint already exists. Overwrite (y/n)?")
     if overwrite_check != "y": 
@@ -160,7 +161,7 @@ def load_from_class_dirs(directory, extension, width, norm, min_count=20):
     #norm = TRUE or FALSE /// will rescale intensity between 0-1 (scikit-image)
     #min_count = amount of specimens / classes (Looks like this is a max_count and not a min_count)
     print(" ")
-    print("Loading images from the directory './" + directory + "'.")
+    print("Loading images from the directory '." + directory + "'.")
     print(" ")
     # Init lists
     images = []
@@ -288,7 +289,7 @@ print("reshape")
 
 #Split images (var images), labels (var cls) and filenames (var filenames) into train set and test set
 train_images, test_images, train_labels, test_labels, train_filenames, \
-    test_filenames = train_test_split(images, cls, filenames, test_size=0.15, random_state=choose_random)
+    test_filenames = train_test_split(images, cls, filenames, test_size=0.2, random_state=choose_random)
 
     #removed cls_mapping split because I haven't figured out what it does yet
     #random_state = int -> CHANGE THIS
@@ -329,14 +330,14 @@ base_model = tf.keras.applications.VGG16(input_shape = (resolution, resolution, 
 
 
 
-print(base_model.summary())
+# print(base_model.summary())
 
 #Pre-trained weights from ImageNet are loaded for transfer learning
 # include_top = false -> we do not include the fully connected hear with the softmax classifier
 # The forward propagation stops at the max-pooling layer - We will treat the output of the max-pooling layer as a list of features, also known as a feature vector
 
 #Lock layers
-for layer in base_model.layers:
+for layer in base_model.layers[0:6]:
     layer.trainable = False
 
 
@@ -344,16 +345,17 @@ for layer in base_model.layers:
 #please experiment
 
 #Add a classificaiton head
-model = tf.keras.Sequential([
-    base_model,
-    tf.keras.layers.GlobalAveragePooling2D(),
-    tf.keras.layers.Dense(len(labels), activation = 'softmax') #Try sigmoid
-    ])
+# model = tf.keras.Sequential([
+#     base_model,
+#     tf.keras.layers.GlobalAveragePooling2D(),
+#     tf.keras.layers.Dense(len(labels), activation = 'softmax') #Try sigmoid
+#     ])
 
 #Compile the model
 
-model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
-model.summary()
+# model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
+base_model.summary()
+
 
 
 
@@ -400,27 +402,30 @@ model.summary()
 #   model.add(tf.keras.layers.Dense(512, activation='relu'))
 #   model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))    
 
-# elif resolution == 64 :
-#   model = tf.keras.models.Sequential()
-#   model.add(tf.keras.layers.Conv2D(16, (3,3), input_shape=(resolution, resolution, 1), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.Conv2D(16, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.MaxPooling2D())
-#   model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.MaxPooling2D())
-#   model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.MaxPooling2D())
-#   model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.MaxPooling2D())
-#   model.add(tf.keras.layers.Flatten())
-#   model.add(tf.keras.layers.Dropout(0.5,seed=7))
-#   model.add(tf.keras.layers.Dense(512, activation='relu'))
-#   model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
+if resolution == 64 :
+  model = tf.keras.models.Sequential()
+  model.add(tf.keras.layers.Conv2D(16, (3,3), input_shape=(resolution, resolution, 1), activation='relu', padding='same'))
+  model.add(tf.keras.layers.Conv2D(16, (3,3), activation='relu', padding='same'))
+  model.add(tf.keras.layers.MaxPooling2D())
+  model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
+  model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
+  model.add(tf.keras.layers.MaxPooling2D())
+  model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
+  model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
+  model.add(tf.keras.layers.MaxPooling2D())
+  model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
+  model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
+  model.add(tf.keras.layers.MaxPooling2D())
+  model.add(tf.keras.layers.Flatten())
+  model.add(tf.keras.layers.Dropout(0.5,seed=7))
+  model.add(tf.keras.layers.Dense(512, activation='relu'))
+  model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
   
 if resolution == 128 :
    model = tf.keras.models.Sequential()
+   # model.add(base_model.layers[0])
+   # model.add(base_model.layers[1])
+   # model.add(base_model.layers[2])
    model.add(base_model.layers[3])
    # model.add(tf.keras.layers.Flatten())
    # model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
@@ -483,8 +488,8 @@ if will_train == True:
     print("Loss+accuracy plotted")
 
 else:
-    latest = tf.train.latest_checkpoint(checkpoint_no)
-    # latest = (checkpoint_no+"/cp-0190.ckpt") #Checkpoint en particulier?
+    latest = tf.train.latest_checkpoint("checkpoints/"+checkpoint_no)
+    #latest = ("checkpoints/"+checkpoint_no+"/cp-0250.ckpt") #Checkpoint en particulier?
     print("LOADING CHECKPOINT " + latest)
     pollen_cnn = model.load_weights(latest)
     

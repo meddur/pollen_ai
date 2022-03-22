@@ -20,11 +20,16 @@ import sys
 
 import shutil
 
-checkpoint_no ="TRANSFER_test_lyr3_augs2"
+checkpoint_no ="TRANSFER_test_lyr3_augs_b64"
+checkpoint_ves = ""
+checkpoint_tri = ""
+checkpoint_alnus = ""
 checkpoint_path = "checkpoints/"+checkpoint_no+"/cp-{epoch:04d}.ckpt"
 data_path = os.getcwd()+"/images_pre_class"
 data_path_post = os.getcwd()+"/images_post_class"
 
+
+batch_size = 64
 resolution = 128
 choose_random = 20
 classes_select = [502, 505, 508, 511, 514, 517]
@@ -92,7 +97,6 @@ def load_from_class_dirs(directory, extension, width, norm, min_count=20):
     # Alphabetically sorted classes
     class_dirs = sorted(glob.glob(directory + "/*"))
     # Load images from each class
-    idx = 0 #Set class ID
     for class_dir in class_dirs:
 
         # Class name
@@ -107,8 +111,6 @@ def load_from_class_dirs(directory, extension, width, norm, min_count=20):
             n_samples=0
             
 
-            class_idx = idx
-            idx += 1                                    #Increment class ID
 
             # Get the files
             files = sorted(glob.glob(class_dir + "/*." + extension))
