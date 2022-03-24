@@ -98,7 +98,7 @@ plot_that_shit = False
 n_epochs = 250
 choose_random = 20
 ac_function = "softmax"
-batch_size = 32
+batch_size = 128
 
 simple_model = False
 
@@ -108,10 +108,14 @@ will_train = True        # False = load an already existing model
 will_save = True
 
 
-checkpoint_no ="Transfer_lyr3_augs"
+checkpoint_no ="transfer_augs_b128"
 checkpoint_path = "checkpoints/"+checkpoint_no+"/cp-{epoch:04d}.ckpt"
 #checkpoint_path = checkpoint_no+"/cp-0185.ckpt"
 
+latest = tf.train.latest_checkpoint("checkpoints/"+checkpoint_no)
+# latest = ("checkpoints/"+checkpoint_no+"/cp-0180.ckpt") #Checkpoint en particulier?
+
+#########################################################################
 
 # os.path.exists(os.getcwd()+"checkpoints/"+checkpoint_no)
 
@@ -289,7 +293,7 @@ print("reshape")
 
 #Split images (var images), labels (var cls) and filenames (var filenames) into train set and test set
 train_images, test_images, train_labels, test_labels, train_filenames, \
-    test_filenames = train_test_split(images, cls, filenames, test_size=0.2, random_state=choose_random)
+    test_filenames = train_test_split(images, cls, filenames, test_size=0.15, random_state=choose_random)
 
     #removed cls_mapping split because I haven't figured out what it does yet
     #random_state = int -> CHANGE THIS
@@ -446,7 +450,8 @@ if resolution == 128 :
    model.add(tf.keras.layers.MaxPooling2D())    
    model.add(tf.keras.layers.Flatten())
    model.add(tf.keras.layers.Dropout(0.5,seed=7))
-   model.add(tf.keras.layers.Dense(512, activation='relu'))
+   # model.add(tf.keras.layers.Dense(256, activation= 'relu'))
+   model.add(tf.keras.layers.Dense(256, activation='relu'))
    model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
 
 
@@ -474,10 +479,15 @@ cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path, save_
 if will_train == True:
     if will_save == True:
         print('TRAINING AND SAVING')
-        pollen_cnn = model.fit(train_images, train_labels, epochs=n_epochs, batch_size = batch_size, callbacks=[cp_callback])
+        # pollen_cnn = model.fit(train_images, train_labels, epochs=n_epochs, batch_size = batch_size, callbacks=[cp_callback])
+        pollen_cnn = model.fit_generator(datagen.flow(train_images, train_labels, batch_size=batch_size), 
+                                          steps_per_epoch=len(train_images) / batch_size, epochs=n_epochs, 
+                                          callbacks=[cp_callback])
     else:
         print('TRAINING')
-        pollen_cnn = model.fit(train_images, train_labels, epochs=n_epochs, batch_size = batch_size)
+        # pollen_cnn = model.fit(train_images, train_labels, epochs=n_epochs, batch_size = batch_size)
+        pollen_cnn = model.fit_generator(datagen.flow(train_images, train_labels, batch_size=batch_size), 
+                                         steps_per_epoch=len(train_images) / batch_size, epochs=n_epochs)
     loss = pollen_cnn.history['loss']
     accuracy = pollen_cnn.history['acc']
     plt.plot(loss)
@@ -488,8 +498,6 @@ if will_train == True:
     print("Loss+accuracy plotted")
 
 else:
-    latest = tf.train.latest_checkpoint("checkpoints/"+checkpoint_no)
-    #latest = ("checkpoints/"+checkpoint_no+"/cp-0250.ckpt") #Checkpoint en particulier?
     print("LOADING CHECKPOINT " + latest)
     pollen_cnn = model.load_weights(latest)
     

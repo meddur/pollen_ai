@@ -20,7 +20,7 @@ import sys
 
 import shutil
 
-checkpoint_no ="TRANSFER_test_lyr3_augs_b64"
+checkpoint_no ="TRANSFER_test_lyr3_augs2"
 checkpoint_ves = ""
 checkpoint_tri = ""
 checkpoint_alnus = ""
@@ -29,11 +29,11 @@ data_path = os.getcwd()+"/images_pre_class"
 data_path_post = os.getcwd()+"/images_post_class"
 
 
-batch_size = 64
+batch_size = 32
 resolution = 128
 choose_random = 20
 classes_select = [502, 505, 508, 511, 514, 517]
-threshold = 0.95
+threshold = 0.80
 presence = True #could be used to filter if a certain level needs to be classified
 max_samples = 60000
 local_classification = True
