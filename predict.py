@@ -20,31 +20,23 @@ import sys
 
 import shutil
 
-<<<<<<< HEAD
-checkpoint_no ="level_1_tricolp_003"
-=======
+
 checkpoint_no ="transfer_augs_1200samples"
 checkpoint_ves = ""
 checkpoint_tri = ""
 checkpoint_alnus = ""
->>>>>>> transfer_learning
+
 checkpoint_path = "checkpoints/"+checkpoint_no+"/cp-{epoch:04d}.ckpt"
 data_path = os.getcwd()+"/images_pre_class"
 data_path_post = os.getcwd()+"/images_post_class"
 
-<<<<<<< HEAD
-resolution = 128
-choose_random = 20
-classes_select = [502, 505, 508, 511, 514, 517]
-threshold = 0.95
-=======
+
 
 batch_size = 32
 resolution = 128
 choose_random = 20
 classes_select = [502, 505, 508, 511, 514, 517]
 threshold = 0.80
->>>>>>> transfer_learning
 presence = True #could be used to filter if a certain level needs to be classified
 max_samples = 60000
 local_classification = True
@@ -81,23 +73,14 @@ lbl_pretty = (
 
 # Definition of process_image
 def process_image(filename, width):
-<<<<<<< HEAD
-    im = Image.open(filename).convert('L')                       # open and convert to greyscale
-=======
     im = Image.open(filename).convert('RGB')                       # open and convert to greyscale
->>>>>>> transfer_learning
     im = np.asarray(im, dtype=np.float)                          # numpy array
     im_shape = im.shape
     im = resize(im, [width, width], order=1 , mode="constant")    # resize using linear interpolation, replace mode='reflect' by 'constant' otherwise error message 
     im = np.divide(im, 255)                                      # divide to put in range [0 - 1] --- Tensorflow works with values between 0-1
     #im = np.expand_dims(im, axis=2)                             #4dimension: allows BATCH SIZE 1 // I don't think this is bad
-<<<<<<< HEAD
-                                                                
-=======
-    
     im = im[:,:,::-1]
     
->>>>>>> transfer_learning
     return im, im_shape   
 #%%
 # Definition of image loading
@@ -116,10 +99,7 @@ def load_from_class_dirs(directory, extension, width, norm, min_count=20):
     # Alphabetically sorted classes
     class_dirs = sorted(glob.glob(directory + "/*"))
     # Load images from each class
-<<<<<<< HEAD
-    idx = 0 #Set class ID
-=======
->>>>>>> transfer_learning
+
     for class_dir in class_dirs:
 
         # Class name
@@ -133,12 +113,6 @@ def load_from_class_dirs(directory, extension, width, norm, min_count=20):
             print("%s - %d" % (depth_level, num_files))
             n_samples=0
             
-
-<<<<<<< HEAD
-            class_idx = idx
-            idx += 1                                    #Increment class ID
-=======
->>>>>>> transfer_learning
 
             # Get the files
             files = sorted(glob.glob(class_dir + "/*." + extension))
@@ -194,25 +168,19 @@ def run_local_classification(directory):
         
         for pollen in predictions:
             # while int(str(pollen[8])[4:])<=
-<<<<<<< HEAD
-            if pollen[8] == current_depth:
-                
-                if pollen[0:8].max() <= threshold:
-=======
+
             if pollen[len(lbl_pretty)] == current_depth:
                 
                 if pollen[0:len(lbl_pretty)].max() <= threshold:
->>>>>>> transfer_learning
+                    
                     shutil.copy(directory+'/'+filenames[filename_it], 
                             current_depth_folder+'/unknown')
                     
                 else:
                     shutil.copy(directory+'/'+filenames[filename_it], 
-<<<<<<< HEAD
-                                current_depth_folder+'/'+lbl_pretty[pollen[0:8].argmax()])
-=======
+
                                 current_depth_folder+'/'+lbl_pretty[pollen[0:len(lbl_pretty)].argmax()])
->>>>>>> transfer_learning
+
                 
                 filename_it = filename_it+1
                     
@@ -224,12 +192,7 @@ def run_local_classification(directory):
 images, depth_index, filenames = load_from_class_dirs(data_path, "png", resolution, False, min_count=20)
 #Changed the extension to png, got an error -> im = resize var mode
 #I don't think leaving the extension as .tif did anything
-<<<<<<< HEAD
-images = images[:,:,:,np.newaxis] #4th dimension fix
 
-opt = tf.keras.optimizers.Adam()
-
-=======
 # images = images[:,:,:,np.newaxis] #4th dimension fix
 
 opt = tf.keras.optimizers.Adam()
@@ -243,24 +206,14 @@ base_model = tf.keras.applications.VGG16(input_shape = (resolution, resolution, 
 for layer in base_model.layers[0:3]:
     layer.trainable = False
 
->>>>>>> transfer_learning
+
 #%% 
 #########################
 #First classification
 #########################
 
 model = tf.keras.models.Sequential()
-<<<<<<< HEAD
-model.add(tf.keras.layers.Conv2D(16, (3,3), input_shape=(resolution, resolution, 1), activation='relu', padding='same'))
-model.add(tf.keras.layers.Conv2D(16, (3,3), activation='relu', padding='same'))
-model.add(tf.keras.layers.MaxPooling2D())
-model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
-model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
-model.add(tf.keras.layers.MaxPooling2D())
-model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
-model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
-model.add(tf.keras.layers.MaxPooling2D())
-=======
+
 model.add(base_model.layers[3])
 # model.add(tf.keras.layers.Flatten())
 # model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
@@ -273,7 +226,6 @@ model.add(base_model.layers[3])
 # model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
 # model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
 # model.add(tf.keras.layers.MaxPooling2D())
->>>>>>> transfer_learning
 model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
 model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
 model.add(tf.keras.layers.MaxPooling2D())
@@ -286,12 +238,7 @@ model.add(tf.keras.layers.Dense(512, activation='relu'))
 model.add(tf.keras.layers.Dense(len(lbl_pretty), activation=ac_function))
 
 
-<<<<<<< HEAD
-model.count_params()
-model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 
-model.summary()
-=======
 # model = tf.keras.models.Sequential()
 # model.add(tf.keras.layers.Conv2D(16, (3,3), input_shape=(resolution, resolution, 1), activation='relu', padding='same'))
 # model.add(tf.keras.layers.Conv2D(16, (3,3), activation='relu', padding='same'))
@@ -318,7 +265,7 @@ model.summary()
 model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 
 # model.summary()
->>>>>>> transfer_learning
+
 
 
 
@@ -333,15 +280,11 @@ depth_index = depth_index[:,np.newaxis] #reshapes depth index -> allows np.appen
 predictions = np.append(predictions_float, depth_index,1) #adds depth data to predictions
 
 
-<<<<<<< HEAD
-=======
+
 # filenames = np.asarray(filenames)
 # filenames = filenames[:,np.newaxis]
 # predictions_filenames = np.append(predictions_float, filenames, 1)
 
-
-
->>>>>>> transfer_learning
 if local_classification == True:
     run_local_classification(data_path)  
 
@@ -359,8 +302,6 @@ if local_classification == True:
 # predictions_debug[4,0:8].argmax()
 # max(predictions_debug[4,0:8])
 
-<<<<<<< HEAD
-predictions[4,0:8].max()
-=======
+
 # predictions[4,0:8].max()
->>>>>>> transfer_learning
+
