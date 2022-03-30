@@ -20,7 +20,7 @@ import sys
 
 import shutil
 
-checkpoint_no ="TRANSFER_test_lyr3_augs2"
+checkpoint_no ="transfer_augs_1200samples"
 checkpoint_ves = ""
 checkpoint_tri = ""
 checkpoint_alnus = ""
@@ -166,15 +166,15 @@ def run_local_classification(directory):
         
         for pollen in predictions:
             # while int(str(pollen[8])[4:])<=
-            if pollen[8] == current_depth:
+            if pollen[len(lbl_pretty)] == current_depth:
                 
-                if pollen[0:8].max() <= threshold:
+                if pollen[0:len(lbl_pretty)].max() <= threshold:
                     shutil.copy(directory+'/'+filenames[filename_it], 
                             current_depth_folder+'/unknown')
                     
                 else:
                     shutil.copy(directory+'/'+filenames[filename_it], 
-                                current_depth_folder+'/'+lbl_pretty[pollen[0:8].argmax()])
+                                current_depth_folder+'/'+lbl_pretty[pollen[0:len(lbl_pretty)].argmax()])
                 
                 filename_it = filename_it+1
                     
@@ -267,6 +267,12 @@ pollen_cnn = model.load_weights(latest)
 predictions_float = model.predict(images)
 depth_index = depth_index[:,np.newaxis] #reshapes depth index -> allows np.append
 predictions = np.append(predictions_float, depth_index,1) #adds depth data to predictions
+
+
+# filenames = np.asarray(filenames)
+# filenames = filenames[:,np.newaxis]
+# predictions_filenames = np.append(predictions_float, filenames, 1)
+
 
 
 if local_classification == True:

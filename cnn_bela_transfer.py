@@ -35,21 +35,21 @@ print("TensorFlow version " + tf.__version__)
 resolution = 128             
 presence = True                # True = classes included in classes_select WILL be included in the model - False = WILL NOT be included
 classes_select = [
-                     "abb_pic_mix",
+                      "abb_pic_mix",
                    # "abies_b",
                     #"acer_mix",
                     # "acer_r",
                     # "acer_s",
-                     'alnus_mix',
+                      'alnus_mix',
                     # "alnus_c",
                     # "alnus_r",
                       "betula_mix",
                        "corylus_c",
                        "eucalyptus",
-                       "juni_thuya",
+                        "juni_thuya",
                     # "picea_mix",
                     # "pinus_b_mix",
-                     "pinus_mix",
+                      "pinus_mix",
                     # "pinus_s",
                     # "populus_d",
                     #"quercus_r",
@@ -88,17 +88,17 @@ add_unclass = False
 #Name of the directory
 
 if add_unclass == True: path_folder_image = "/home/paleolab/Documents/python/CNN_BELA/pollen_dataset_w_unclass"
-else: path_folder_image = "/home/paleolab/Documents/python/CNN_BELA/pollen_dataset/level_0"
+else: path_folder_image = "/home/paleolab/Documents/python/CNN_BELA/pollen_dataset/level_0_no_limits"
 
 
 #Parameters
 
-max_samples = 660
+max_samples = 100
 plot_that_shit = False
-n_epochs = 250
+n_epochs = 300
 choose_random = 20
 ac_function = "softmax"
-batch_size = 128
+batch_size = 32
 
 simple_model = False
 
@@ -108,7 +108,7 @@ will_train = True        # False = load an already existing model
 will_save = True
 
 
-checkpoint_no ="transfer_augs_b128"
+checkpoint_no ="test"
 checkpoint_path = "checkpoints/"+checkpoint_no+"/cp-{epoch:04d}.ckpt"
 #checkpoint_path = checkpoint_no+"/cp-0185.ckpt"
 
@@ -332,10 +332,6 @@ base_model = tf.keras.applications.VGG16(input_shape = (resolution, resolution, 
                                           include_top = False,
                                           weights = 'imagenet')
 
-
-
-# print(base_model.summary())
-
 #Pre-trained weights from ImageNet are loaded for transfer learning
 # include_top = false -> we do not include the fully connected hear with the softmax classifier
 # The forward propagation stops at the max-pooling layer - We will treat the output of the max-pooling layer as a list of features, also known as a feature vector
@@ -348,36 +344,13 @@ for layer in base_model.layers[0:6]:
 #connect one layer from the CNN to our CNN
 #please experiment
 
-#Add a classificaiton head
-# model = tf.keras.Sequential([
-#     base_model,
-#     tf.keras.layers.GlobalAveragePooling2D(),
-#     tf.keras.layers.Dense(len(labels), activation = 'softmax') #Try sigmoid
-#     ])
-
 #Compile the model
 
 # model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 base_model.summary()
 
 
-
-
-
 #Input shape de la première layer du modèle normal = (None, 128, 128, 1)
-
-# #Add a dropout rate
-# prediction_model = tf.keras.layers.Dropout(0.2)(prediction_model)
-
-# #Add a final softmax layer for classification
-# prediction_model = tf.keras.layers.Dense (3, activation = ac_function)(prediction_model)
-
-
-
-# model = Model(pre_trained_model.input, prediction_model)
-
-
-
 
 
 
@@ -389,22 +362,22 @@ base_model.summary()
     #16 -> Number of output filters in the convolution
     #(3,3) -> Kernel size (Height and Width of the 2d convolution window)
     #padding = same -> for each filter (16,32 etc) there is an output channel
-# if simple_model == True :
-#   model = tf.keras.models.Sequential()
-#   model.add(tf.keras.layers.Conv2D(16, (3,3), input_shape=(resolution, resolution, 1), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.MaxPooling2D())
-#   model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.MaxPooling2D())
-#   model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.MaxPooling2D())
-#   model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.MaxPooling2D())
-#   model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))
-#   model.add(tf.keras.layers.MaxPooling2D())                                        
-#   model.add(tf.keras.layers.Flatten())
-#   model.add(tf.keras.layers.Dropout(0.5,seed=7))
-#   model.add(tf.keras.layers.Dense(512, activation='relu'))
-#   model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))    
+if simple_model == True :
+  model = tf.keras.models.Sequential()
+  model.add(tf.keras.layers.Conv2D(16, (3,3), input_shape=(resolution, resolution, 1), activation='relu', padding='same'))
+  model.add(tf.keras.layers.MaxPooling2D())
+  model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
+  model.add(tf.keras.layers.MaxPooling2D())
+  model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
+  model.add(tf.keras.layers.MaxPooling2D())
+  model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
+  model.add(tf.keras.layers.MaxPooling2D())
+  model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))
+  model.add(tf.keras.layers.MaxPooling2D())                                        
+  model.add(tf.keras.layers.Flatten())
+  model.add(tf.keras.layers.Dropout(0.5,seed=7))
+  model.add(tf.keras.layers.Dense(512, activation='relu'))
+  model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))    
 
 if resolution == 64 :
   model = tf.keras.models.Sequential()
@@ -427,9 +400,6 @@ if resolution == 64 :
   
 if resolution == 128 :
    model = tf.keras.models.Sequential()
-   # model.add(base_model.layers[0])
-   # model.add(base_model.layers[1])
-   # model.add(base_model.layers[2])
    model.add(base_model.layers[3])
    # model.add(tf.keras.layers.Flatten())
    # model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
@@ -450,8 +420,7 @@ if resolution == 128 :
    model.add(tf.keras.layers.MaxPooling2D())    
    model.add(tf.keras.layers.Flatten())
    model.add(tf.keras.layers.Dropout(0.5,seed=7))
-   # model.add(tf.keras.layers.Dense(256, activation= 'relu'))
-   model.add(tf.keras.layers.Dense(256, activation='relu'))
+   model.add(tf.keras.layers.Dense(512, activation='relu'))
    model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
 
 
@@ -501,19 +470,6 @@ else:
     print("LOADING CHECKPOINT " + latest)
     pollen_cnn = model.load_weights(latest)
     
-
-
-#%%
-
-# loss = pollen_cnn.history['loss']
-# accuracy = pollen_cnn.history['acc']
-# plt.plot(loss)
-# plt.plot(accuracy)
-# plt.legend(['loss', 'accuracy'])
-# plt.show()
-
-# print("Loss+accuracy plotted")
-
 #%%
 #Test the model w/ predictions on the test set
 sonic=(model.predict_classes(test_images))[0:test_images.shape[0]]
