@@ -36,25 +36,28 @@ print("TensorFlow version " + tf.__version__)
 resolution = 128             
 presence = True                # True = classes included in classes_select WILL be included in the model - False = WILL NOT be included
 classes_select = [
-                      "abb_pic_mix",
-                   # "abies_b",
-                    #"acer_mix",
+                        "abb_pic_mix",
+                    # "abies_b",
+                    # "acer_mix",
                     # "acer_r",
                     # "acer_s",
-                      'alnus_mix',
+                       # 'alnus_mix',
                     # "alnus_c",
                     # "alnus_r",
-                      "betula_mix",
-                       "corylus_c",
-                       "eucalyptus",
+                       # "betula_mix",
+                        # "corylus_c",
+                        # "eucalyptus",
                         "juni_thuya",
+                        "npp_mix",
                     # "picea_mix",
                     # "pinus_b_mix",
-                      "pinus_mix",
+                       "pinus_mix",
                     # "pinus_s",
                     # "populus_d",
-                    #"quercus_r",
+                    # "quercus_r",
                     'tricolp_mix',
+                    'tripor_mix',
+                    # 'tsuga',
                     #'vesiculate_mix',
                     
         ]                                   # Classes you want (or not) in the model
@@ -94,11 +97,11 @@ else: path_folder_image = "/home/paleolab/Documents/python/CNN_BELA/pollen_datas
 
 #Parameters
 
-max_samples = 100
+max_samples = 1200
 plot_that_shit = False
 n_epochs = 200
 choose_random = 20
-ac_function = "softmax"
+ac_function = "softmax" #Don't forget to change the loss function to binary_crossentropy 
 batch_size = 32
 
 simple_model = False
@@ -109,12 +112,12 @@ will_train = True        # False = load an already existing model
 will_save = True
 
 
-checkpoint_no ="test"
+checkpoint_no ="transfer_1200_npp_trip_deep"
 checkpoint_path = "checkpoints/"+checkpoint_no+"/cp-{epoch:04d}.ckpt"
 #checkpoint_path = checkpoint_no+"/cp-0185.ckpt"
 
 latest = tf.train.latest_checkpoint("checkpoints/"+checkpoint_no)
-# latest = ("checkpoints/"+checkpoint_no+"/cp-0180.ckpt") #Checkpoint en particulier?
+# latest = ("checkpoints/"+checkpoint_no+"/cp-0300.ckpt") #Checkpoint en particulier?
 
 #########################################################################
 
@@ -130,7 +133,7 @@ if will_save == True and os.path.exists(os.getcwd()+"/checkpoints/"+checkpoint_n
         for f in directory_wipe:         
             os.remove(f)
     
-notes=" doubled starting outputfilters (16->32etc)"
+notes=" 128-256"
 
 notes_ckpt = "Checkpoint : "+checkpoint_no+"\nResolution : " + str(resolution) + \
     "\nClasses : " + str(classes_select) + "\nMax samples : " + str(max_samples) + \
@@ -315,8 +318,8 @@ print("Images splitted; optimizer")
 datagen = ImageDataGenerator(horizontal_flip=True, vertical_flip=True,
                                fill_mode= 'constant', cval = 0, shear_range = 0.15,
                                 #brightness_range = [0.8, 1.0,],
-                               # zoom_range = [0.7, 1.0],
-                              # height_shift_range = 0.1, width_shift_range=0.1, shear_range = 0.15,
+                                # zoom_range = [0.7, 1.0],
+                               # height_shift_range = 0.1, width_shift_range=0.1,
                               rotation_range = 45,
                              )
 datagen.fit(train_images)
@@ -343,6 +346,7 @@ base_model = tf.keras.applications.VGG16(input_shape = (resolution, resolution, 
 for layer in base_model.layers[0:6]:
     layer.trainable = False
 
+base_model.trainable = False
 
 #connect one layer from the CNN to our CNN
 #please experiment
@@ -353,7 +357,8 @@ for layer in base_model.layers[0:6]:
 base_model.summary()
 
 
-# model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
+
+# base_model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 
 
 
@@ -367,12 +372,10 @@ base_model.summary()
 
 if simple_model == True :
   model = tf.keras.models.Sequential()
-  model.add(tf.keras.layers.Conv2D(16, (3,3), input_shape=(resolution, resolution, 1), activation='relu', padding='same'))
-  model.add(tf.keras.layers.MaxPooling2D())
-  model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
-  model.add(tf.keras.layers.MaxPooling2D())
-  model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
-  model.add(tf.keras.layers.MaxPooling2D())
+  # model.add(base_model.layers[0])
+  # model.add(base_model.layers[1])
+  # model.add(base_model.layers[2])
+  model.add(base_model.layers[3])
   model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
   model.add(tf.keras.layers.MaxPooling2D())
   model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))
@@ -383,7 +386,7 @@ if simple_model == True :
   model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))    
 
 
-if resolution == 64 :
+elif resolution == 64 :
 
   model = tf.keras.models.Sequential()
   model.add(tf.keras.layers.Conv2D(16, (3,3), input_shape=(resolution, resolution, 1), activation='relu', padding='same'))
@@ -404,36 +407,47 @@ if resolution == 64 :
   model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
   
 
-if resolution == 128 :
+elif resolution == 128 :
+    
+    # model = tf.keras.models.Sequential([
+    #     base_model,
+    #     tf.keras.layers.MaxPooling2D(),
+    #     tf.keras.layers.Flatten(),
+    #     tf.keras.layers.Dense(len(labels), activation=ac_function)
+    #     ])
 
-   model = tf.keras.models.Sequential()
-   model.add(base_model.layers[3])
-   # model.add(tf.keras.layers.Flatten())
-   # model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
-   # model.add(tf.keras.layers.Conv2D(16, (3,3), input_shape=(resolution, resolution, 1), activation='relu', padding='same'))
-   # model.add(tf.keras.layers.Conv2D(16, (3,3), activation='relu', padding='same'))
-   # model.add(tf.keras.layers.MaxPooling2D())
-   # model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
-   # model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
-   # model.add(tf.keras.layers.MaxPooling2D())
-   # model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
-   # model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
-   # model.add(tf.keras.layers.MaxPooling2D())
-   model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
-   model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
-   model.add(tf.keras.layers.MaxPooling2D())
-   model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
-   model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
-   model.add(tf.keras.layers.MaxPooling2D())    
-   model.add(tf.keras.layers.Flatten())
-   model.add(tf.keras.layers.Dropout(0.5,seed=7))
-   model.add(tf.keras.layers.Dense(512, activation='relu'))
-   model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
+    model = tf.keras.models.Sequential()
+    model.add(base_model.layers[3])
+    # model.add(tf.keras.layers.Flatten())
+    # model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
+    # model.add(tf.keras.layers.Conv2D(16, (3,3), input_shape=(resolution, resolution, 1), activation='relu', padding='same'))
+    # model.add(tf.keras.layers.Conv2D(16, (3,3), activation='relu', padding='same'))
+    # model.add(tf.keras.layers.MaxPooling2D())
+    # model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
+    # model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
+    # model.add(tf.keras.layers.MaxPooling2D())
+    # model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
+    # model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
+    # model.add(tf.keras.layers.MaxPooling2D())
+    model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
+    model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
+    model.add(tf.keras.layers.MaxPooling2D())
+    model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
+    model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
+    model.add(tf.keras.layers.MaxPooling2D())
+    model.add(tf.keras.layers.Conv2D(512, (3,3), activation='relu', padding='same'))
+    model.add(tf.keras.layers.MaxPooling2D())
+    model.add(tf.keras.layers.Flatten())
+    model.add(tf.keras.layers.Dropout(0.5,seed=7))
+    model.add(tf.keras.layers.Dense(1024, activation='relu'))
+    model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
 
 
 
 # model.count_params()
+# model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
+
 
 #         # Loss function: Measures how accurate the model is during training. You want to minimize this function to 'steer' the model in its right direction        
 #         # Optimizer: How the model is updated based on the data it sees and its loss function
@@ -464,7 +478,6 @@ if will_train == True:
     else:
         print('TRAINING')
 
-        # pollen_cnn = model.fit(train_images, train_labels, epochs=n_epochs, batch_size = batch_size)
         pollen_cnn = model.fit_generator(datagen.flow(train_images, train_labels, batch_size=batch_size), 
                                          steps_per_epoch=len(train_images) / batch_size, epochs=n_epochs)
 
@@ -481,21 +494,41 @@ else:
 
     print("LOADING CHECKPOINT " + latest)
     pollen_cnn = model.load_weights(latest)
+    # pollen_cnn = model.fit_generator(datagen.flow(train_images, train_labels, batch_size=batch_size), 
+    #                               steps_per_epoch=len(train_images) / batch_size, epochs=n_epochs, 
+    #                               callbacks=[cp_callback])
     
 
 #%%
 #Test the model w/ predictions on the test set
-sonic=(model.predict_classes(test_images))[0:test_images.shape[0]]
+#BINARY CLASSIFICATION: ADDED NEW METHOD
+if ac_function == 'sigmoid':    
+    sonic = (model.predict(test_images) >= 0.5).astype("int64")
+    sonic = sonic[0:,0] 
+else: sonic = (model.predict_classes(test_images))[0:test_images.shape[0]]
+
+
     # Tests are processed faster when predictions are in here
 test_loss, test_acc = model.evaluate(test_images, test_labels, verbose=2) 
 
 success_images  = 0
 fail_images = 0  
+
+# if ac_function == 'sigmoid':    #Binary classification // model.predict_classes is deprecated
+
+#     for b in range (test_images.shape[0]):
+#         if test_labels[b] == sonic [b,0]:
+#           success_images =  success_images  +1
+#         else:
+#           fail_images = fail_images +1
+          
+# else:
 for b in range (test_images.shape[0]):
-  if test_labels[b] == sonic[b]:
-    success_images =  success_images  +1
-  else:
-    fail_images = fail_images +1
+    if test_labels[b] == sonic [b]:
+      success_images =  success_images  +1
+    else:
+      fail_images = fail_images +1
+
     
 p_success= round(success_images/len(test_labels)*100,1)
 p_fail=round(fail_images/len(test_labels)*100,1)

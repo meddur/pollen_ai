@@ -21,13 +21,13 @@ import sys
 import shutil
 
 
-checkpoint_no ="transfer_augs_1200samples"
+checkpoint_no ="tripor_small_deeper2.2"
 checkpoint_ves = ""
 checkpoint_tri = ""
 checkpoint_alnus = ""
 
 checkpoint_path = "checkpoints/"+checkpoint_no+"/cp-{epoch:04d}.ckpt"
-data_path = os.getcwd()+"/images_pre_class"
+data_path = os.getcwd()+"/images_pre_class_tripo"
 data_path_post = os.getcwd()+"/images_post_class"
 
 
@@ -35,14 +35,14 @@ data_path_post = os.getcwd()+"/images_post_class"
 batch_size = 32
 resolution = 128
 choose_random = 20
-classes_select = [502, 505, 508, 511, 514, 517]
-threshold = 0.80
+classes_select = [502, 505, 508, 511, 514, 517, 520, 523, 526]
+threshold = 0.90
 presence = True #could be used to filter if a certain level needs to be classified
 max_samples = 60000
 local_classification = True
 ac_function = "softmax"
 lbl_pretty = (
-                    "abb_pic_mix",
+                    # "abb_pic_mix",
                     # "abies_b",
                     # "acer_mix",
                     # "acer_r",
@@ -53,14 +53,15 @@ lbl_pretty = (
                     "betula_mix",
                     "corylus_c",
                     "eucalyptus",
-                    "juni_thuya",
+                    # "juni_thuya",
                     # "picea_mix",
                     # "pinus_b_mix",
-                    "pinus_mix",
+                    # "pinus_mix",
                     # "pinus_s",
                     # "populus_d",
                     # "quercus_r",
-                    'tricolp_mix',
+                    # 'tricolp_mix',
+                    # 'tsuga',
                     #'vesiculate_mix',
     )
 
@@ -206,6 +207,7 @@ base_model = tf.keras.applications.VGG16(input_shape = (resolution, resolution, 
 for layer in base_model.layers[0:3]:
     layer.trainable = False
 
+base_model.trainable = False
 
 #%% 
 #########################
@@ -231,11 +233,24 @@ model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
 model.add(tf.keras.layers.MaxPooling2D())
 model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
 model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
-model.add(tf.keras.layers.MaxPooling2D())    
+model.add(tf.keras.layers.MaxPooling2D())
+model.add(tf.keras.layers.Conv2D(512, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
+model.add(tf.keras.layers.Conv2D(512, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
+model.add(tf.keras.layers.MaxPooling2D())
 model.add(tf.keras.layers.Flatten())
 model.add(tf.keras.layers.Dropout(0.5,seed=7))
-model.add(tf.keras.layers.Dense(512, activation='relu'))
+model.add(tf.keras.layers.Dense(1024, activation='relu'))
 model.add(tf.keras.layers.Dense(len(lbl_pretty), activation=ac_function))
+
+
+    
+# model = tf.keras.models.Sequential([
+#     base_model,
+#     tf.keras.layers.MaxPooling2D(),
+#     tf.keras.layers.Flatten(),
+#     tf.keras.layers.Dense(len(lbl_pretty), activation=ac_function)
+#     ])
+
 
 
 
@@ -270,7 +285,7 @@ model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['a
 
 
 latest = tf.train.latest_checkpoint("checkpoints/"+checkpoint_no)
-# latest = ("checkpoints/"+checkpoint_no+"/cp-0190.ckpt") #Checkpoint en particulier?
+# latest = ("checkpoints/"+checkpoint_no+"/cp-0300.ckpt") #Checkpoint en particulier?
 print("LOADING CHECKPOINT " + latest)
 pollen_cnn = model.load_weights(latest)
 
