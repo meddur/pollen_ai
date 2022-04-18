@@ -4,6 +4,7 @@
 
 import tensorflow as tf
 tf.enable_eager_execution() #Parce que TF version <2.0 
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import numpy as np #funky array stuff
 import os #permet os based operations/querries
 import glob #What does it do?
@@ -32,28 +33,31 @@ print("TensorFlow version " + tf.__version__)
 # Settings
 # =============================================================================
 
-resolution = 128              
+resolution = 128             
 presence = True                # True = classes included in classes_select WILL be included in the model - False = WILL NOT be included
 classes_select = [
-                     "abb_pic_mix",
-                   # "abies_b",
-                    #"acer_mix",
+                        "abb_pic_mix",
+                    # "abies_b",
+                    # "acer_mix",
                     # "acer_r",
                     # "acer_s",
-                     'alnus_mix',
+                       # 'alnus_mix',
                     # "alnus_c",
                     # "alnus_r",
-                      "betula_mix",
-                       "corylus_c",
-                       "eucalyptus",
-                       "juni_thuya",
+                       # "betula_mix",
+                        # "corylus_c",
+                        # "eucalyptus",
+                        "juni_thuya",
+                        "npp_mix",
                     # "picea_mix",
                     # "pinus_b_mix",
-                     "pinus_mix",
+                       "pinus_mix",
                     # "pinus_s",
                     # "populus_d",
-                    #"quercus_r",
+                    # "quercus_r",
                     'tricolp_mix',
+                    'tripor_mix',
+                    # 'tsuga',
                     #'vesiculate_mix',
                     
         ]                                   # Classes you want (or not) in the model
@@ -88,16 +92,16 @@ add_unclass = False
 #Name of the directory
 
 if add_unclass == True: path_folder_image = "/home/paleolab/Documents/python/CNN_BELA/pollen_dataset_w_unclass"
-else: path_folder_image = "/home/paleolab/Documents/python/CNN_BELA/pollen_dataset/level_0"
+else: path_folder_image = "/home/paleolab/Documents/python/CNN_BELA/pollen_dataset/level_0_no_limits"
 
 
 #Parameters
 
-max_samples = 660
+max_samples = 1200
 plot_that_shit = False
 n_epochs = 200
 choose_random = 20
-ac_function = "softmax"
+ac_function = "softmax" #Don't forget to change the loss function to binary_crossentropy 
 batch_size = 32
 
 simple_model = False
@@ -107,23 +111,29 @@ simple_model = False
 will_train = True        # False = load an already existing model
 will_save = True
 
-checkpoint_no ="TRANSFER_test3"
-checkpoint_path = checkpoint_no+"/cp-{epoch:04d}.ckpt"
+
+checkpoint_no ="transfer_1200_npp_trip_deep"
+checkpoint_path = "checkpoints/"+checkpoint_no+"/cp-{epoch:04d}.ckpt"
 #checkpoint_path = checkpoint_no+"/cp-0185.ckpt"
 
+latest = tf.train.latest_checkpoint("checkpoints/"+checkpoint_no)
+# latest = ("checkpoints/"+checkpoint_no+"/cp-0300.ckpt") #Checkpoint en particulier?
 
+#########################################################################
 
-if will_save == True and os.path.exists(os.getcwd()+"/"+checkpoint_no) == True:
+# os.path.exists(os.getcwd()+"checkpoints/"+checkpoint_no)
+
+if will_save == True and os.path.exists(os.getcwd()+"/checkpoints/"+checkpoint_no) == True:
 
     overwrite_check = input("Checkpoint already exists. Overwrite (y/n)?")
     if overwrite_check != "y": 
         sys.exit('Error : Checkpoint folder already exists. Aborting')
     else:
-        directory_wipe = glob.glob(os.getcwd()+"/"+checkpoint_no+"/*")
+        directory_wipe = glob.glob(os.getcwd()+"checkpoints/"+checkpoint_no+"/*")
         for f in directory_wipe:         
             os.remove(f)
     
-notes=" doubled starting outputfilters (16->32etc)"
+notes=" 128-256"
 
 notes_ckpt = "Checkpoint : "+checkpoint_no+"\nResolution : " + str(resolution) + \
     "\nClasses : " + str(classes_select) + "\nMax samples : " + str(max_samples) + \
@@ -159,7 +169,7 @@ def load_from_class_dirs(directory, extension, width, norm, min_count=20):
     #norm = TRUE or FALSE /// will rescale intensity between 0-1 (scikit-image)
     #min_count = amount of specimens / classes (Looks like this is a max_count and not a min_count)
     print(" ")
-    print("Loading images from the directory './" + directory + "'.")
+    print("Loading images from the directory '." + directory + "'.")
     print(" ")
     # Init lists
     images = []
@@ -304,14 +314,17 @@ opt = tf.keras.optimizers.Adam()
 print("Images splitted; optimizer")
 #%%
 
+
 datagen = ImageDataGenerator(horizontal_flip=True, vertical_flip=True,
                                fill_mode= 'constant', cval = 0, shear_range = 0.15,
                                 #brightness_range = [0.8, 1.0,],
-                               # zoom_range = [0.7, 1.0],
-                              # height_shift_range = 0.1, width_shift_range=0.1, shear_range = 0.15,
-                              #rotation_range = 15,
+                                # zoom_range = [0.7, 1.0],
+                               # height_shift_range = 0.1, width_shift_range=0.1,
+                              rotation_range = 45,
                              )
 datagen.fit(train_images)
+
+
 # %%
 # ======================
 # Transfer learning
@@ -322,61 +335,30 @@ print("Loading Network")
 
 # base_model = VGG16(input_shape = (resolution, resolution, 3), weights = "imagenet", include_top=False)  
 base_model = tf.keras.applications.VGG16(input_shape = (resolution, resolution, 3),
-                                         include_top = False,
-                                         weights = 'imagenet')
-
-
-print(base_model.summary())
+                                          include_top = False,
+                                          weights = 'imagenet')
 
 #Pre-trained weights from ImageNet are loaded for transfer learning
 # include_top = false -> we do not include the fully connected hear with the softmax classifier
 # The forward propagation stops at the max-pooling layer - We will treat the output of the max-pooling layer as a list of features, also known as a feature vector
 
 #Lock layers
-for layer in base_model.layers[0:3]:
+for layer in base_model.layers[0:6]:
     layer.trainable = False
 
+base_model.trainable = False
 
 #connect one layer from the CNN to our CNN
 #please experiment
 
-#Add a classificaiton head
-# model = tf.keras.Sequential()
-# model.add(base_model.layers[3])
-# model.add(tf.keras.layers.Flatten())
-# model.add(tf.keras.layers.Dropout(0.5))
-# model.add(tf.keras.layers.Dense(len(labels), activation = 'softmax')) #Try sigmoid
-
-
-
-
 #Compile the model
 
 # model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
+base_model.summary()
 
 
 
-
-# Input shape de la première layer du modèle normal = (None, 128, 128, 1)
-
-# vgg16_model = VGG16(input_shape = (resolution, resolution, 3), weights = "imagenet", include_top=False)  
-
-# base_model = Model(input=vgg16_model.input,
-#                    output=vgg16_model.get_layer("block5_pool").output)
-
-# # (3) attach a new top layer
-# base_out = base_model.output
-# top_fc1 = tf.keras.layers.Flatten()(base_out) 
-# top_fc2 = tf.keras.layers.Dropout(0.5)(top_fc1)
-# top_preds = tf.keras.layers.Dense(1, activation="softmax")(top_fc2)
-
-# # (4) freeze weights until the last but one convolution layer (block4_pool)
-# for layer in base_model.layers[0:4]:
-#     layer.trainable = False
-
-# # (5) create new hybrid model
-# model = Model(input=base_model.input, output=top_preds)
-
+# base_model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 
 
 
@@ -384,17 +366,16 @@ for layer in base_model.layers[0:3]:
 
 
 
-    # 16 -> Number of output filters in the convolution
-    # (3,3) -> Kernel size (Height and Width of the 2d convolution window)
-    # padding = same -> for each filter (16,32 etc) there is an output channel
+    #16 -> Number of output filters in the convolution
+    #(3,3) -> Kernel size (Height and Width of the 2d convolution window)
+    #padding = same -> for each filter (16,32 etc) there is an output channel
+
 if simple_model == True :
   model = tf.keras.models.Sequential()
-  model.add(tf.keras.layers.Conv2D(16, (3,3), input_shape=(resolution, resolution, 1), activation='relu', padding='same'))
-  model.add(tf.keras.layers.MaxPooling2D())
-  model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
-  model.add(tf.keras.layers.MaxPooling2D())
-  model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
-  model.add(tf.keras.layers.MaxPooling2D())
+  # model.add(base_model.layers[0])
+  # model.add(base_model.layers[1])
+  # model.add(base_model.layers[2])
+  model.add(base_model.layers[3])
   model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
   model.add(tf.keras.layers.MaxPooling2D())
   model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))
@@ -404,7 +385,9 @@ if simple_model == True :
   model.add(tf.keras.layers.Dense(512, activation='relu'))
   model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))    
 
+
 elif resolution == 64 :
+
   model = tf.keras.models.Sequential()
   model.add(tf.keras.layers.Conv2D(16, (3,3), input_shape=(resolution, resolution, 1), activation='relu', padding='same'))
   model.add(tf.keras.layers.Conv2D(16, (3,3), activation='relu', padding='same'))
@@ -423,37 +406,53 @@ elif resolution == 64 :
   model.add(tf.keras.layers.Dense(512, activation='relu'))
   model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
   
+
 elif resolution == 128 :
-   model = tf.keras.models.Sequential()
-   model.add(base_model.layers[3])
-   # model.add(tf.keras.layers.Flatten())
-   # model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
-   # model.add(tf.keras.layers.Conv2D(16, (3,3), input_shape=(resolution, resolution, 1), activation='relu', padding='same'))
-   model.add(tf.keras.layers.Conv2D(16, (3,3), activation='relu', padding='same'))
-   model.add(tf.keras.layers.MaxPooling2D())
-   model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
-   model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
-   model.add(tf.keras.layers.MaxPooling2D())
-   model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
-   model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
-   model.add(tf.keras.layers.MaxPooling2D())
-   model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
-   model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
-   model.add(tf.keras.layers.MaxPooling2D())
-   model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
-   model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
-   model.add(tf.keras.layers.MaxPooling2D())    
-   model.add(tf.keras.layers.Flatten())
-   model.add(tf.keras.layers.Dropout(0.5,seed=7))
-   model.add(tf.keras.layers.Dense(512, activation='relu'))
-   model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
+    
+    # model = tf.keras.models.Sequential([
+    #     base_model,
+    #     tf.keras.layers.MaxPooling2D(),
+    #     tf.keras.layers.Flatten(),
+    #     tf.keras.layers.Dense(len(labels), activation=ac_function)
+    #     ])
+
+    model = tf.keras.models.Sequential()
+    model.add(base_model.layers[3])
+    # model.add(tf.keras.layers.Flatten())
+    # model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
+    # model.add(tf.keras.layers.Conv2D(16, (3,3), input_shape=(resolution, resolution, 1), activation='relu', padding='same'))
+    # model.add(tf.keras.layers.Conv2D(16, (3,3), activation='relu', padding='same'))
+    # model.add(tf.keras.layers.MaxPooling2D())
+    # model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
+    # model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
+    # model.add(tf.keras.layers.MaxPooling2D())
+    # model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
+    # model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
+    # model.add(tf.keras.layers.MaxPooling2D())
+    model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
+    model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
+    model.add(tf.keras.layers.MaxPooling2D())
+    model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
+    model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
+    model.add(tf.keras.layers.MaxPooling2D())
+    model.add(tf.keras.layers.Conv2D(512, (3,3), activation='relu', padding='same'))
+    model.add(tf.keras.layers.MaxPooling2D())
+    model.add(tf.keras.layers.Flatten())
+    model.add(tf.keras.layers.Dropout(0.5,seed=7))
+    model.add(tf.keras.layers.Dense(1024, activation='relu'))
+    model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
+
 
 
 # model.count_params()
+# model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
-        # Loss function: Measures how accurate the model is during training. You want to minimize this function to 'steer' the model in its right direction        
-        # Optimizer: How the model is updated based on the data it sees and its loss function
-        # Metrics: Used to monitor the training and testing steps. 'accuracy' = fraction of the images that are correctly classified
+
+
+#         # Loss function: Measures how accurate the model is during training. You want to minimize this function to 'steer' the model in its right direction        
+#         # Optimizer: How the model is updated based on the data it sees and its loss function
+#         # Metrics: Used to monitor the training and testing steps. 'accuracy' = fraction of the images that are correctly classified
+
 
 # model.summary()
 
@@ -472,13 +471,16 @@ cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path, save_
 if will_train == True:
     if will_save == True:
         print('TRAINING AND SAVING')
+
         pollen_cnn = model.fit_generator(datagen.flow(train_images, train_labels, batch_size=batch_size), 
                                           steps_per_epoch=len(train_images) / batch_size, epochs=n_epochs, 
                                           callbacks=[cp_callback])
     else:
         print('TRAINING')
+
         pollen_cnn = model.fit_generator(datagen.flow(train_images, train_labels, batch_size=batch_size), 
-                                          steps_per_epoch=len(train_images) / batch_size, epochs=n_epochs)
+                                         steps_per_epoch=len(train_images) / batch_size, epochs=n_epochs)
+
     loss = pollen_cnn.history['loss']
     accuracy = pollen_cnn.history['acc']
     plt.plot(loss)
@@ -489,38 +491,44 @@ if will_train == True:
     print("Loss+accuracy plotted")
 
 else:
-    latest = tf.train.latest_checkpoint("checkpoints/"+checkpoint_no)
-    # latest = ("checkpoints/"+checkpoint_no+"/cp-0190.ckpt") #Checkpoint en particulier?
+
     print("LOADING CHECKPOINT " + latest)
     pollen_cnn = model.load_weights(latest)
+    # pollen_cnn = model.fit_generator(datagen.flow(train_images, train_labels, batch_size=batch_size), 
+    #                               steps_per_epoch=len(train_images) / batch_size, epochs=n_epochs, 
+    #                               callbacks=[cp_callback])
     
-
-
-
-#%%
-
-# loss = pollen_cnn.history['loss']
-# accuracy = pollen_cnn.history['acc']
-# plt.plot(loss)
-# plt.plot(accuracy)
-# plt.legend(['loss', 'accuracy'])
-# plt.show()
-
-# print("Loss+accuracy plotted")
 
 #%%
 #Test the model w/ predictions on the test set
-sonic=(model.predict_classes(test_images))[0:test_images.shape[0]]
+#BINARY CLASSIFICATION: ADDED NEW METHOD
+if ac_function == 'sigmoid':    
+    sonic = (model.predict(test_images) >= 0.5).astype("int64")
+    sonic = sonic[0:,0] 
+else: sonic = (model.predict_classes(test_images))[0:test_images.shape[0]]
+
+
     # Tests are processed faster when predictions are in here
 test_loss, test_acc = model.evaluate(test_images, test_labels, verbose=2) 
 
 success_images  = 0
 fail_images = 0  
+
+# if ac_function == 'sigmoid':    #Binary classification // model.predict_classes is deprecated
+
+#     for b in range (test_images.shape[0]):
+#         if test_labels[b] == sonic [b,0]:
+#           success_images =  success_images  +1
+#         else:
+#           fail_images = fail_images +1
+          
+# else:
 for b in range (test_images.shape[0]):
-  if test_labels[b] == sonic[b]:
-    success_images =  success_images  +1
-  else:
-    fail_images = fail_images +1
+    if test_labels[b] == sonic [b]:
+      success_images =  success_images  +1
+    else:
+      fail_images = fail_images +1
+
     
 p_success= round(success_images/len(test_labels)*100,1)
 p_fail=round(fail_images/len(test_labels)*100,1)
@@ -544,7 +552,7 @@ if will_save == True and will_train == True:
             "\nTest accuracy : "+str(test_acc)+"\nMin. training loss : "+str(min(loss))+\
                 " at epoch n "+str(1+(loss.index(min(loss))))+"\nMax accuracy : "+\
                     str(max(accuracy))+" at epoch n "+str(1+(accuracy.index(max(accuracy))))
-    file1= open(checkpoint_no+"/"+"notes_"+checkpoint_no+".txt", "w")
+    file1= open("checkpoints/"+checkpoint_no+"/"+"notes_"+checkpoint_no+".txt", "w")
     file1.write(notes_ckpt)
     file1.close()
     print("Model saved") 
