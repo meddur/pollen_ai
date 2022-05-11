@@ -1,7 +1,5 @@
 import tensorflow as tf
 
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
-
 tf.enable_eager_execution() #Parce que TF version <2.0 
 
 import numpy as np #funky array stuff
@@ -10,12 +8,6 @@ import glob #What does it do?
 from PIL import Image     #Case sensitive  
 from skimage.transform import resize #self explanatory package=scikit-image
 from skimage.exposure import rescale_intensity #Why is this necessary?
-from sklearn.model_selection import train_test_split
-import matplotlib.pyplot as plt
-
-import itertools # Confusion Matrix
-from sklearn.metrics import confusion_matrix # Confusion Matrix
-import random #randomize files within directory
 import sys
 
 import shutil
@@ -24,12 +16,19 @@ import pandas as pd
 
 checkpoint_no ="transfer_1200_npp_trip_deep"
 checkpoint_abb_pic = "transfer_abb_pic_sigmoid"
-checkpoint_pinus = "transfer_pinus_sigmoid"
-checkpoint_tricolp = "transfer_tricolp_sigmoid"
-checkpoint_tripor = "transfer_tripor_small"
+checkpoint_pinus = "transfer_pinus_sigmoid_deep"
+checkpoint_tricolp = "tricolp_no_val_sig_normal_depth"
+checkpoint_tripor = "transfer_tripor_small_deep"
 checkpoint_path = "checkpoints/"+checkpoint_no+"/cp-{epoch:04d}.ckpt"
-data_path = os.getcwd()+"/images_pre_honors"
+data_path = os.getcwd()+"/images_pre_1002_1065"
 data_path_post = os.getcwd()+"/images_post_class"
+
+# 280_475
+# 478_673
+# 675_867
+# 870_999
+# 1002_1065
+
 
 
 
@@ -48,13 +47,13 @@ classes_select = sorted(classes_select)
 
 
 
-threshold = 0.5
+threshold = 0.8
 presence = True #could be used to filter if a certain level needs to be classified
 max_samples = 60000
-local_classification = False #If True, localy copies the classified data to its own classification folder
+local_classification = False #If True, locally copies the classified data to its own classification folder
 
 local_classification_overwrite = True #This should be left on
-lvl_0_switch = True      #This should be left on 
+lvl_1_switch = True      #This should be left on 
 
 
 
@@ -285,7 +284,7 @@ def run_local_classification(directory, lbl_list, prediction_data, filenames_lis
         print("Classifying depth "+str(current_depth))
         current_depth_folder = data_path_post+"/"+checkpoint_no+"/"+str(current_depth)
         
-        if lvl_0_switch == True:    #create a sub folder for each depth level if this is the first classification round
+        if lvl_1_switch == True:    #create a sub folder for each depth level if this is the first classification round
             
             os.makedirs(current_depth_folder)
             os.makedirs(current_depth_folder+'/unknown')
@@ -436,17 +435,6 @@ base_model.trainable = False
 model = tf.keras.models.Sequential()
 
 model.add(base_model.layers[3])
-# model.add(tf.keras.layers.Flatten())
-# model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
-# model.add(tf.keras.layers.Conv2D(16, (3,3), input_shape=(resolution, resolution, 1), activation='relu', padding='same'))
-# model.add(tf.keras.layers.Conv2D(16, (3,3), activation='relu', padding='same'))
-# model.add(tf.keras.layers.MaxPooling2D())
-# model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
-# model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
-# model.add(tf.keras.layers.MaxPooling2D())
-# model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
-# model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
-# model.add(tf.keras.layers.MaxPooling2D())
 model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
 model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
 model.add(tf.keras.layers.MaxPooling2D())
@@ -492,12 +480,13 @@ predictions = np.append(predictions_float, depth_index,1) #adds depth data to pr
 
 run_local_classification(data_path, lbl_pretty, predictions, filenames)  
 local_classification_overwrite = False #So that when we loop back to classify deeper branches, we don't trigger the overwrite safety
-lvl_0_switch = False
+lvl_1_switch = False
 
 
 
 #%%
-copy_index, images_lvl2, filenames_lvl2, pollen_index, depth_index_lvl2, masterlist_lvl2 = create_masterlist(checkpoint_no) #run second prediction from lvl 2 pollens
+copy_index, images_lvl2, filenames_lvl2, pollen_index, \
+depth_index_lvl2, masterlist_lvl2 = create_masterlist(checkpoint_no) #run second prediction from lvl 2 pollens
 
 #%%
 ####################################
@@ -581,9 +570,11 @@ model.add(tf.keras.layers.MaxPooling2D())
 model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
 model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
 model.add(tf.keras.layers.MaxPooling2D())    
+model.add(tf.keras.layers.Conv2D(512, (3,3), activation='relu', padding='same'))
+model.add(tf.keras.layers.MaxPooling2D())    
 model.add(tf.keras.layers.Flatten())
 model.add(tf.keras.layers.Dropout(0.5,seed=7))
-model.add(tf.keras.layers.Dense(512, activation='relu'))
+model.add(tf.keras.layers.Dense(1024, activation='relu'))
 model.add(tf.keras.layers.Dense(len(lbl_dict['pinus_mix']), activation = ac_function))
 
 model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
@@ -596,7 +587,7 @@ predictions_pinus = sub_level_prediction(masterlist_lvl2, images_lvl2, "pinus_mi
 #CLASSIFY TRICOLPORATE
 ####################################
 
-print("Classifying Triporate")
+print("Classifying Tricolporate")
 
 del model# THERE COULD BE OTHER THINGS TO DELETE/ RESET THE SEED / RESET DEFAULT GRAPH
 del base_model
@@ -672,9 +663,11 @@ model.add(tf.keras.layers.MaxPooling2D())
 model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
 model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
 model.add(tf.keras.layers.MaxPooling2D())    
+model.add(tf.keras.layers.Conv2D(512, (3,3), activation='relu', padding='same'))
+model.add(tf.keras.layers.MaxPooling2D())    
 model.add(tf.keras.layers.Flatten())
 model.add(tf.keras.layers.Dropout(0.5,seed=7))
-model.add(tf.keras.layers.Dense(512, activation='relu'))
+model.add(tf.keras.layers.Dense(1024, activation='relu'))
 model.add(tf.keras.layers.Dense(len(lbl_dict['tripor_mix']), activation = ac_function))
 
 model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])

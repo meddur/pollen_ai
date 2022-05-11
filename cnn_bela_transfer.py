@@ -36,27 +36,27 @@ print("TensorFlow version " + tf.__version__)
 resolution = 128             
 presence = True                # True = classes included in classes_select WILL be included in the model - False = WILL NOT be included
 classes_select = [
-                        "abb_pic_mix",
-                    # "abies_b",
+                        # "abb_pic_mix",
+                    "abies_b",
                     # "acer_mix",
                     # "acer_r",
                     # "acer_s",
-                       # 'alnus_mix',
+                        # 'alnus_mix',
                     # "alnus_c",
                     # "alnus_r",
-                       # "betula_mix",
+                        # "betula_mix",
                         # "corylus_c",
                         # "eucalyptus",
-                        "juni_thuya",
-                        "npp_mix",
-                    # "picea_mix",
+                        # "juni_thuya",
+                        # "npp_mix",
+                    "picea_mix",
                     # "pinus_b_mix",
-                       "pinus_mix",
+                        # "pinus_mix",
                     # "pinus_s",
                     # "populus_d",
                     # "quercus_r",
-                    'tricolp_mix',
-                    'tripor_mix',
+                    # 'tricolp_mix',
+                    # 'tripor_mix',
                     # 'tsuga',
                     #'vesiculate_mix',
                     
@@ -92,16 +92,16 @@ add_unclass = False
 #Name of the directory
 
 if add_unclass == True: path_folder_image = "/home/paleolab/Documents/python/CNN_BELA/pollen_dataset_w_unclass"
-else: path_folder_image = "/home/paleolab/Documents/python/CNN_BELA/pollen_dataset/level_0_no_limits"
+else: path_folder_image = "/home/paleolab/Documents/python/CNN_BELA/pollen_dataset/level_0"
 
 
 #Parameters
 
-max_samples = 1200
+max_samples = 800
 plot_that_shit = False
-n_epochs = 200
+n_epochs = 350
 choose_random = 20
-ac_function = "softmax" #Don't forget to change the loss function to binary_crossentropy 
+ac_function = "sigmoid" #Don't forget to change the loss function to binary_crossentropy 
 batch_size = 32
 
 simple_model = False
@@ -112,12 +112,12 @@ will_train = True        # False = load an already existing model
 will_save = True
 
 
-checkpoint_no ="transfer_1200_npp_trip_deep"
+checkpoint_no ="abb_pic_no_val"
 checkpoint_path = "checkpoints/"+checkpoint_no+"/cp-{epoch:04d}.ckpt"
-#checkpoint_path = checkpoint_no+"/cp-0185.ckpt"
+
 
 latest = tf.train.latest_checkpoint("checkpoints/"+checkpoint_no)
-# latest = ("checkpoints/"+checkpoint_no+"/cp-0300.ckpt") #Checkpoint en particulier?
+# latest = ("checkpoints/"+checkpoint_no+"/cp-0480.ckpt") #Checkpoint en particulier?
 
 #########################################################################
 
@@ -133,15 +133,14 @@ if will_save == True and os.path.exists(os.getcwd()+"/checkpoints/"+checkpoint_n
         for f in directory_wipe:         
             os.remove(f)
     
-notes=" 128-256"
+notes="normal depth, no val, last layer is dense(1)"
 
 notes_ckpt = "Checkpoint : "+checkpoint_no+"\nResolution : " + str(resolution) + \
     "\nClasses : " + str(classes_select) + "\nMax samples : " + str(max_samples) + \
         "\nEpochs : " + str(n_epochs) + "\nAdd Unclass : " + str(add_unclass) + \
             "\nActivation function : " + ac_function + \
                 "\nSimple model : " + str(simple_model) + \
-            "\nSeed : " + str(choose_random) + "\nNotes : "+notes 
-                
+            "\nSeed : " + str(choose_random) + "\nNotes : "+ notes + "\n Path folder image : "+path_folder_image
 
 print(notes_ckpt)
 
@@ -296,12 +295,19 @@ print("reshape")
 
 
 #Split images (var images), labels (var cls) and filenames (var filenames) into train set and test set
+
 train_images, test_images, train_labels, test_labels, train_filenames, \
     test_filenames = train_test_split(images, cls, filenames, test_size=0.15, random_state=choose_random)
+
+# train_val_images, test_images, train_val_labels, test_labels, train_val_filenames, \
+#     test_filenames = train_test_split(images, cls, filenames, test_size=0.15, random_state=choose_random)
 
     #removed cls_mapping split because I haven't figured out what it does yet
     #random_state = int -> CHANGE THIS
     #test_size = float. proportion accordée au test sample
+
+# train_images, val_images, train_labels, val_labels, train_filenames, \
+#     val_filenames = train_test_split(train_val_images, train_val_labels, train_val_filenames, test_size=0.4, random_state=choose_random)
 
 
 
@@ -417,6 +423,9 @@ elif resolution == 128 :
     #     ])
 
     model = tf.keras.models.Sequential()
+    # model.add(base_model.layers[0])
+    # model.add(base_model.layers[1])
+    # model.add(base_model.layers[2])
     model.add(base_model.layers[3])
     # model.add(tf.keras.layers.Flatten())
     # model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
@@ -435,25 +444,31 @@ elif resolution == 128 :
     model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
     model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
     model.add(tf.keras.layers.MaxPooling2D())
-    model.add(tf.keras.layers.Conv2D(512, (3,3), activation='relu', padding='same'))
-    model.add(tf.keras.layers.MaxPooling2D())
+    # model.add(tf.keras.layers.Conv2D(512, (3,3), activation='relu', padding='same'))
+    # model.add(tf.keras.layers.MaxPooling2D())
     model.add(tf.keras.layers.Flatten())
     model.add(tf.keras.layers.Dropout(0.5,seed=7))
-    model.add(tf.keras.layers.Dense(1024, activation='relu'))
-    model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
-
+    model.add(tf.keras.layers.Dense(512, activation='relu'))
+    # model.add(tf.keras.layers.Dense(1024, activation='relu'))
+    if ac_function == 'sigmoid':
+        model.add(tf.keras.layers.Dense(1, activation=ac_function)) #THIS LAYER SHOULD HAVE FILTER SIZE 1 IF BINARY CLASS.
+    else:
+        model.add(tf.keras.layers.Dense(len(labels), activation=ac_function)) #THIS LAYER SHOULD HAVE FILTER SIZE 1 IF BINARY CLASS.
 
 
 # model.count_params()
-# model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
-model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
+if ac_function == 'sigmoid':
+    model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
+else:
+    model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
+
 
 
 #         # Loss function: Measures how accurate the model is during training. You want to minimize this function to 'steer' the model in its right direction        
 #         # Optimizer: How the model is updated based on the data it sees and its loss function
 #         # Metrics: Used to monitor the training and testing steps. 'accuracy' = fraction of the images that are correctly classified
 
-
+# model.build(input_shape = (0,128, 128, 3))
 # model.summary()
 
 print("keras layers compiled")
@@ -465,7 +480,8 @@ print("keras layers compiled")
 cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path, save_weights_only=True, \
                                                  verbose = 1, period = 10) #period = save frequency
 
-    
+lr_callback = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10, verbose = 1,
+                                                   mode = 'auto', min_delta=0.0001, cooldown=0, min_lr=0)
 #Fit the model/start training
 
 if will_train == True:
@@ -474,12 +490,15 @@ if will_train == True:
 
         pollen_cnn = model.fit_generator(datagen.flow(train_images, train_labels, batch_size=batch_size), 
                                           steps_per_epoch=len(train_images) / batch_size, epochs=n_epochs, 
-                                          callbacks=[cp_callback])
+                                            # callbacks=[cp_callback, lr_callback], \
+                                            #     validation_data = (val_images, val_labels))
+                                            callbacks=[cp_callback])
     else:
         print('TRAINING')
 
         pollen_cnn = model.fit_generator(datagen.flow(train_images, train_labels, batch_size=batch_size), 
-                                         steps_per_epoch=len(train_images) / batch_size, epochs=n_epochs)
+                                         steps_per_epoch=len(train_images) / batch_size, epochs=n_epochs,
+                                         callbacks=[lr_callback]) # DELETE THIS IF REMOVING LR CALLBACKS
 
     loss = pollen_cnn.history['loss']
     accuracy = pollen_cnn.history['acc']
@@ -515,17 +534,11 @@ success_images  = 0
 fail_images = 0  
 
 # if ac_function == 'sigmoid':    #Binary classification // model.predict_classes is deprecated
-
-#     for b in range (test_images.shape[0]):
-#         if test_labels[b] == sonic [b,0]:
-#           success_images =  success_images  +1
-#         else:
-#           fail_images = fail_images +1
-          
+     
 # else:
 for b in range (test_images.shape[0]):
     if test_labels[b] == sonic [b]:
-      success_images =  success_images  +1
+      success_images =  success_images +1
     else:
       fail_images = fail_images +1
 
@@ -565,6 +578,7 @@ if will_save == True and will_train == True:
 
 
 predictions = model.predict(test_images)
+predictions2 = predictions
 num_class = len(labels)
 num_rows = 200
 num_cols = 3
