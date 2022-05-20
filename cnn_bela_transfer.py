@@ -37,7 +37,7 @@ resolution = 128
 presence = True                # True = classes included in classes_select WILL be included in the model - False = WILL NOT be included
 classes_select = [
                         # "abb_pic_mix",
-                    "abies_b",
+                    # "abies_b",
                     # "acer_mix",
                     # "acer_r",
                     # "acer_s",
@@ -49,10 +49,10 @@ classes_select = [
                         # "eucalyptus",
                         # "juni_thuya",
                         # "npp_mix",
-                    "picea_mix",
-                    # "pinus_b_mix",
+                    # "picea_mix",
+                    "pinus_b_mix",
                         # "pinus_mix",
-                    # "pinus_s",
+                    "pinus_s",
                     # "populus_d",
                     # "quercus_r",
                     # 'tricolp_mix',
@@ -97,9 +97,9 @@ else: path_folder_image = "/home/paleolab/Documents/python/CNN_BELA/pollen_datas
 
 #Parameters
 
-max_samples = 800
+max_samples = 1000
 plot_that_shit = False
-n_epochs = 350
+n_epochs = 300
 choose_random = 20
 ac_function = "sigmoid" #Don't forget to change the loss function to binary_crossentropy 
 batch_size = 32
@@ -108,11 +108,11 @@ simple_model = False
 
 #Checkpoint setup
 
-will_train = True        # False = load an already existing model
-will_save = True
+will_train = False        # False = load an already existing model
+will_save = False
 
 
-checkpoint_no ="abb_pic_no_val"
+checkpoint_no ="pinus_val"
 checkpoint_path = "checkpoints/"+checkpoint_no+"/cp-{epoch:04d}.ckpt"
 
 
@@ -133,7 +133,7 @@ if will_save == True and os.path.exists(os.getcwd()+"/checkpoints/"+checkpoint_n
         for f in directory_wipe:         
             os.remove(f)
     
-notes="normal depth, no val, last layer is dense(1)"
+notes="normal depth, WITH val *0.1*, with plateau callback and early stopping, sigmoid, last layer is dense 1, normal dataset"
 
 notes_ckpt = "Checkpoint : "+checkpoint_no+"\nResolution : " + str(resolution) + \
     "\nClasses : " + str(classes_select) + "\nMax samples : " + str(max_samples) + \
@@ -144,6 +144,9 @@ notes_ckpt = "Checkpoint : "+checkpoint_no+"\nResolution : " + str(resolution) +
 
 print(notes_ckpt)
 
+#LAST RUN WAS 12.4 % ---- NO LR CALLBACKS, NO EARLY STOPPING, NO DEEP MODEL; THIS RUN: I ADDED BOTH CALLBACKS AND REDUCED VAL TO 0.1**************************************************
+# Last RUN was 9.6% ----- early stopped at epoch 149
+# THIS RUN was 12.4% --- Same model as run #1 but with NO Early stopping
 
 
 # =============================================================================
@@ -296,18 +299,18 @@ print("reshape")
 
 #Split images (var images), labels (var cls) and filenames (var filenames) into train set and test set
 
-train_images, test_images, train_labels, test_labels, train_filenames, \
-    test_filenames = train_test_split(images, cls, filenames, test_size=0.15, random_state=choose_random)
-
-# train_val_images, test_images, train_val_labels, test_labels, train_val_filenames, \
+# train_images, test_images, train_labels, test_labels, train_filenames, \
 #     test_filenames = train_test_split(images, cls, filenames, test_size=0.15, random_state=choose_random)
+
+train_val_images, test_images, train_val_labels, test_labels, train_val_filenames, \
+    test_filenames = train_test_split(images, cls, filenames, test_size=0.15, random_state=choose_random)
 
     #removed cls_mapping split because I haven't figured out what it does yet
     #random_state = int -> CHANGE THIS
     #test_size = float. proportion accordée au test sample
 
-# train_images, val_images, train_labels, val_labels, train_filenames, \
-#     val_filenames = train_test_split(train_val_images, train_val_labels, train_val_filenames, test_size=0.4, random_state=choose_random)
+train_images, val_images, train_labels, val_labels, train_filenames, \
+    val_filenames = train_test_split(train_val_images, train_val_labels, train_val_filenames, test_size=0.1, random_state=choose_random)
 
 
 
@@ -444,14 +447,15 @@ elif resolution == 128 :
     model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
     model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
     model.add(tf.keras.layers.MaxPooling2D())
-    # model.add(tf.keras.layers.Conv2D(512, (3,3), activation='relu', padding='same'))
-    # model.add(tf.keras.layers.MaxPooling2D())
+    model.add(tf.keras.layers.Conv2D(512, (3,3), activation='relu', padding='same'))
+    model.add(tf.keras.layers.MaxPooling2D())
     model.add(tf.keras.layers.Flatten())
     model.add(tf.keras.layers.Dropout(0.5,seed=7))
-    model.add(tf.keras.layers.Dense(512, activation='relu'))
-    # model.add(tf.keras.layers.Dense(1024, activation='relu'))
+    # model.add(tf.keras.layers.Dense(512, activation='relu'))
+    model.add(tf.keras.layers.Dense(1024, activation='relu'))
     if ac_function == 'sigmoid':
         model.add(tf.keras.layers.Dense(1, activation=ac_function)) #THIS LAYER SHOULD HAVE FILTER SIZE 1 IF BINARY CLASS.
+        # model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
     else:
         model.add(tf.keras.layers.Dense(len(labels), activation=ac_function)) #THIS LAYER SHOULD HAVE FILTER SIZE 1 IF BINARY CLASS.
 
@@ -475,13 +479,16 @@ print("keras layers compiled")
 
 #%%
 
-#Create a callback that saves the models weights
+#Create callbacks
 
 cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path, save_weights_only=True, \
                                                  verbose = 1, period = 10) #period = save frequency
 
-lr_callback = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10, verbose = 1,
-                                                   mode = 'auto', min_delta=0.0001, cooldown=0, min_lr=0)
+lr_callback = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=20, verbose = 1,
+                                                    mode = 'auto', min_delta=0.001, cooldown=5, min_lr=0)
+
+es_callback = tf.keras.callbacks.EarlyStopping(patience = 25, monitor = 'val_loss', verbose = 1, min_delta = 0.001, 
+                                               restore_best_weights=True, mode='auto')
 #Fit the model/start training
 
 if will_train == True:
@@ -490,15 +497,16 @@ if will_train == True:
 
         pollen_cnn = model.fit_generator(datagen.flow(train_images, train_labels, batch_size=batch_size), 
                                           steps_per_epoch=len(train_images) / batch_size, epochs=n_epochs, 
-                                            # callbacks=[cp_callback, lr_callback], \
-                                            #     validation_data = (val_images, val_labels))
-                                            callbacks=[cp_callback])
+                                            callbacks=[cp_callback, lr_callback, es_callback], \
+                                                validation_data = (val_images, val_labels))
+                                            # callbacks=[cp_callback, lr_callback])
     else:
         print('TRAINING')
 
         pollen_cnn = model.fit_generator(datagen.flow(train_images, train_labels, batch_size=batch_size), 
                                          steps_per_epoch=len(train_images) / batch_size, epochs=n_epochs,
-                                         callbacks=[lr_callback]) # DELETE THIS IF REMOVING LR CALLBACKS
+                                         validation_data = (val_images, val_labels),
+                                         callbacks=[lr_callback, es_callback]) # DELETE THIS IF REMOVING LR CALLBACKS
 
     loss = pollen_cnn.history['loss']
     accuracy = pollen_cnn.history['acc']
