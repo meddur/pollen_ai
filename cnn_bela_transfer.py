@@ -22,7 +22,7 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras.applications import VGG16 #utilisent RESNET_18 Olsson et al 
 from tensorflow.keras import Model
 #from tensorflow.keras.applications.vgg16 import preprocess_input
-
+from sklearn.calibration import calibration_curve
 
 
 
@@ -41,24 +41,26 @@ classes_select = [
                     # "acer_mix",
                     # "acer_r",
                     # "acer_s",
-                        # 'alnus_mix',
+                        'alnus_mix',
                     # "alnus_c",
                     # "alnus_r",
-                        # "betula_mix",
-                        # "corylus_c",
-                        # "eucalyptus",
+                        "betula_mix",
+                        "corylus_c",
+                        "eucalyptus",
                         # "juni_thuya",
                         # "npp_mix",
                     # "picea_mix",
-                    "pinus_b_mix",
+                    # "pinus_b_mix",
                         # "pinus_mix",
-                    "pinus_s",
+                    # "pinus_s",
                     # "populus_d",
                     # "quercus_r",
                     # 'tricolp_mix',
                     # 'tripor_mix',
                     # 'tsuga',
                     #'vesiculate_mix',
+                    # "bidon1",
+                    # "bidon2"
                     
         ]                                   # Classes you want (or not) in the model
 
@@ -91,28 +93,31 @@ add_unclass = False
 
 #Name of the directory
 
+
+os.chdir("/Users/mederic/Documents/python/CNN_BELA")
+
 if add_unclass == True: path_folder_image = "/home/paleolab/Documents/python/CNN_BELA/pollen_dataset_w_unclass"
-else: path_folder_image = "/home/paleolab/Documents/python/CNN_BELA/pollen_dataset/level_0"
+else: path_folder_image = os.getcwd()+"/pollen_dataset/level_0"
 
 
 #Parameters
 
 max_samples = 1000
 plot_that_shit = False
-n_epochs = 300
+n_epochs = 600
 choose_random = 20
-ac_function = "sigmoid" #Don't forget to change the loss function to binary_crossentropy 
+ac_function = "softmax" #Don't forget to change the loss function to binary_crossentropy 
 batch_size = 32
 
 simple_model = False
 
 #Checkpoint setup
 
-will_train = False        # False = load an already existing model
+will_train = False       # False = load an already existing model
 will_save = False
 
 
-checkpoint_no ="pinus_val"
+checkpoint_no ="transfer_tripor_small_deep"
 checkpoint_path = "checkpoints/"+checkpoint_no+"/cp-{epoch:04d}.ckpt"
 
 
@@ -133,7 +138,7 @@ if will_save == True and os.path.exists(os.getcwd()+"/checkpoints/"+checkpoint_n
         for f in directory_wipe:         
             os.remove(f)
     
-notes="normal depth, WITH val *0.1*, with plateau callback and early stopping, sigmoid, last layer is dense 1, normal dataset"
+notes="test_bidon_ece"
 
 notes_ckpt = "Checkpoint : "+checkpoint_no+"\nResolution : " + str(resolution) + \
     "\nClasses : " + str(classes_select) + "\nMax samples : " + str(max_samples) + \
@@ -143,10 +148,6 @@ notes_ckpt = "Checkpoint : "+checkpoint_no+"\nResolution : " + str(resolution) +
             "\nSeed : " + str(choose_random) + "\nNotes : "+ notes + "\n Path folder image : "+path_folder_image
 
 print(notes_ckpt)
-
-#LAST RUN WAS 12.4 % ---- NO LR CALLBACKS, NO EARLY STOPPING, NO DEEP MODEL; THIS RUN: I ADDED BOTH CALLBACKS AND REDUCED VAL TO 0.1**************************************************
-# Last RUN was 9.6% ----- early stopped at epoch 149
-# THIS RUN was 12.4% --- Same model as run #1 but with NO Early stopping
 
 
 # =============================================================================
@@ -275,7 +276,54 @@ def plot_confusion_matrix(cm, classes, normalize=False, title='Confusion matrix'
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
     plt.tight_layout()
+#%%
+def temp_scaling(logits_nps, labels_nps, sess, maxiter=50):
+
+    temp_var = tf.get_variable("temp", shape=[1], initializer=tf.initializers.constant(1.5))
+
+    logits_tensor = tf.constant(logits_nps, name='logits_valid')
+
+    print("got here! logits_tensor type and shape: ")
+    print(logits_tensor)
+
+    labels_tensor = tf.constant(labels_nps, name='labels_valid')
+    print("got here! labels_tensor type and shape: ")
+    print(labels_tensor)
+
+
+    acc_op = tf.metrics.accuracy(labels_tensor, tf.argmax(logits_tensor, axis=1))
+    logits_w_temp = tf.divide(logits_tensor, temp_var)
     
+    # loss
+    nll_loss_op = tf.losses.sparse_softmax_cross_entropy(
+        labels= labels_nps, logits=logits_w_temp)
+    org_nll_loss_op = tf.identity(nll_loss_op)
+
+    # optimizer
+    print("CHOOSE OPTIMIZER")
+    optim = tf.contrib.opt.ScipyOptimizerInterface(nll_loss_op, options={'maxiter': maxiter})
+
+    sess.run(temp_var.initializer)
+    sess.run(tf.local_variables_initializer())
+    sess.run(tf.global_variables_initializer()) #ADDED THIS
+    org_nll_loss = sess.run(org_nll_loss_op)
+
+    optim.minimize(sess)
+
+    nll_loss = sess.run(nll_loss_op)
+    temperature = sess.run(temp_var)
+    acc = sess.run(acc_op)
+
+    print ("Original NLL: {:.3f}, validation accuracy: {:.3f}%".format(org_nll_loss, acc[0] * 100))
+    print ("After temperature scaling, NLL: {:.3f}, temperature: {:.3f}".format(
+        nll_loss, temperature[0]))
+    
+    predict_w_temp = logits_w_temp.eval(session=sess) #ADDED THIS
+    
+    scaled_predict = np.exp(predict_w_temp) / np.sum(np.exp(predict_w_temp),  #ADDED THIS
+                                                     axis=-1, keepdims=True)
+    
+    return temp_var, temperature, predict_w_temp, scaled_predict
     
 # %%
 
@@ -467,7 +515,6 @@ else:
     model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 
 
-
 #         # Loss function: Measures how accurate the model is during training. You want to minimize this function to 'steer' the model in its right direction        
 #         # Optimizer: How the model is updated based on the data it sees and its loss function
 #         # Metrics: Used to monitor the training and testing steps. 'accuracy' = fraction of the images that are correctly classified
@@ -484,10 +531,12 @@ print("keras layers compiled")
 cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path, save_weights_only=True, \
                                                  verbose = 1, period = 10) #period = save frequency
 
-lr_callback = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=20, verbose = 1,
-                                                    mode = 'auto', min_delta=0.001, cooldown=5, min_lr=0)
+lr_callback = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.1, \
+                                                   patience=20, verbose = 1, mode='auto', \
+                                                   min_delta=0.001, cooldown=5, min_lr=0)
 
-es_callback = tf.keras.callbacks.EarlyStopping(patience = 25, monitor = 'val_loss', verbose = 1, min_delta = 0.001, 
+es_callback = tf.keras.callbacks.EarlyStopping(patience = 25, monitor = 'val_loss', \
+                                               verbose = 1, min_delta = 0.001, \
                                                restore_best_weights=True, mode='auto')
 #Fit the model/start training
 
@@ -563,6 +612,7 @@ print("Test accuracy:", test_acc)
 if will_train == True:
     print("Min. training loss : "+str(min(loss))+" at epoch n "+str(1+(loss.index(min(loss)))))
     print("Max accuracy : "+str(max(accuracy))+" at epoch n "+str(1+(accuracy.index(max(accuracy)))))
+
 
 
 #%%
@@ -649,4 +699,15 @@ if will_save == True: plt.savefig(os.path.dirname(checkpoint_path)+"/normalized_
     
 plt.show()
 
+#%%
 
+predict_non_int = model.predict(test_images)
+
+sys.path.insert(0, '/Users/mederic/Documents/python/temperature-scaling-tensorflow-master')
+tf.disable_eager_execution()
+# tf.reset_default_graph()
+
+# import temp_scaling
+
+temp_var, temperature, predict_w_temp, scaled_predict = temp_scaling(predict_non_int, 
+                                                  test_labels, tf.Session(), maxiter=50)
