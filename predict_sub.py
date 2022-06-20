@@ -380,9 +380,36 @@ def create_masterlist (prediction_data):
     masterlist_lvl2 = np.concatenate((filenames_lvl2, pollen_index),axis = 1)
     
     return copy_index, images_lvl2, filenames_lvl2, pollen_index, depth_index_lvl2, masterlist_lvl2
+#%%
+
+def get_scaled_prediction (logits, temperature):
+
+    logits_w_temp = tf.divide(logits, temperature)
+    
+    scld_predict = np.exp(logits_w_temp) / np.sum(np.exp(logits_w_temp),
+                                                         axis=-1, keepdims=True)
+    print(scld_predict)
+    
+    if ac_function == 'sigmoid': 
+        i = 0
+        scld_per = np.zeros(shape=(len(scld_predict),), dtype='float32')
+        print("got here")
+        for value in scld_predict:
+            if value > 0:
+                scld_per[i] = value*1./max(scld_predict)
+            else:
+                scld_per[i] = value
+            i = i+1
+            
+    else:
+        
+        scld_per = np.where(np.max(scld_predict, axis=0)==0, scld_predict,
+                                      scld_predict*1./np.max(scld_predict, axis=0))
+        
+    return scld_per    
 
 #%%
-def sub_level_prediction (masterlist, images, branch, checkpoint_sub, depth_index):
+def sub_level_prediction (masterlist, images, branch, checkpoint_sub, depth_index, temperature):
     
     #Predicts the data from an upper level branch/node into substrata
     #Inputs: the branch name (string), the masterlist, the image data with lvl<1, their depth
@@ -404,16 +431,19 @@ def sub_level_prediction (masterlist, images, branch, checkpoint_sub, depth_inde
     
     pollen_cnn = model.load_weights(latest)
     
-    if ac_function == 'sigmoid':    
-        predictions_lvl2_float = (model.predict(images_extract) >= 0.5).astype("int64")
-        predictions_lvl2_float = predictions_lvl2_float[0:,0]
-        predictions_lvl2_float = predictions_lvl2_float[:,np.newaxis]
+    # if ac_function == 'sigmoid':    
+    #     predictions_lvl2_float = (model.predict(images_extract) >= 0.5).astype("int64")
+    #     predictions_lvl2_float = predictions_lvl2_float[0:,0]
+    #     predictions_lvl2_float = predictions_lvl2_float[:,np.newaxis]
         
-    else: predictions_lvl2_float = model.predict(images_extract)
+    # else: predictions_lvl2_float = model.predict(images_extract)
     
     
+    predictions_lvl2_float = model.predict(images_extract)
+    scld_per = get_scaled_prediction(predictions_lvl2_float, temperature)
     
-    predictions_lvl2 = np.append(predictions_lvl2_float, depth_index_extract, 1) #adds depth data to predictions along the last axis
+    depth_index = depth_index[:,np.newaxis] #reshapes depth index -> allows np.append    
+    predictions_lvl2 = np.append(scld_per, depth_index_extract, 1) #adds depth data to predictions along the last axis
     
     
     run_local_classification(data_path, lbl_dict[branch], predictions_lvl2, filenames_extract)
@@ -475,7 +505,6 @@ model.add(tf.keras.layers.Conv2D(512, (3,3), activation='relu', padding='same'))
 model.add(tf.keras.layers.MaxPooling2D())    
 model.add(tf.keras.layers.Flatten())
 model.add(tf.keras.layers.Dropout(0.5,seed=7))
-# model.add(tf.keras.layers.Dense(512, activation='relu'))
 model.add(tf.keras.layers.Dense(1024, activation='relu'))
 model.add(tf.keras.layers.Dense(len(lbl_pretty), activation=ac_function))
 
@@ -490,9 +519,15 @@ latest = tf.train.latest_checkpoint("checkpoints/"+checkpoint_no)
 # latest = ("checkpoints/"+checkpoint_no+"/cp-0300.ckpt") #Checkpoint en particulier?
 print("LOADING CHECKPOINT " + latest)
 pollen_cnn = model.load_weights(latest)
+
+######### PREDICTIONS ####################
+
 predictions_float = model.predict(images)
+scaled_predictions = get_scaled_prediction(predictions_float, temperature = 0.195)
+
 depth_index = depth_index[:,np.newaxis] #reshapes depth index -> allows np.append
-predictions = np.append(predictions_float, depth_index,1) #adds depth data to predictions
+predictions = np.append(scaled_predictions, depth_index,1) #adds depth data to predictions
+
 
 
 
@@ -561,11 +596,12 @@ model.add(tf.keras.layers.Dense(len(lbl_dict['abb_pic_mix']), activation = ac_fu
 
 model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
 
-predictions_abb_pic = sub_level_prediction(masterlist_lvl2, images_lvl2, "abb_pic_mix", checkpoint_abb_pic, depth_index_lvl2)
 
-masterlist_lvl3 = update_masterlist(masterlist_lvl2, predictions_abb_pic, 'abb_pic_mix')
+predictions_abb_pic = sub_level_prediction(masterlist_lvl2, images_lvl2, "abb_pic_mix", 
+                                           checkpoint_abb_pic, depth_index_lvl2, temperature = 0.392)
 
-#%%
+masterlist_lvl2 = update_masterlist(masterlist_lvl2, predictions_abb_pic, 'abb_pic_mix')
+
 
 #%%
 ####################################
@@ -612,9 +648,10 @@ model.add(tf.keras.layers.Dense(len(lbl_dict['pinus_mix']), activation = ac_func
 
 model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
 
-predictions_pinus = sub_level_prediction(masterlist_lvl2, images_lvl2, "pinus_mix", checkpoint_pinus, depth_index_lvl2)
+predictions_pinus = sub_level_prediction(masterlist_lvl2, images_lvl2, "pinus_mix", 
+                                         checkpoint_pinus, depth_index_lvl2, temperature = 0.45)
 
-masterlist_lvl3 = update_masterlist(masterlist_lvl3, predictions_pinus, 'pinus_mix')
+masterlist_lvl2 = update_masterlist(masterlist_lvl2, predictions_pinus, 'pinus_mix')
 
 #%%
 ####################################
@@ -655,14 +692,16 @@ model.add(tf.keras.layers.MaxPooling2D())
 model.add(tf.keras.layers.Flatten())
 model.add(tf.keras.layers.Dropout(0.5,seed=7))
 model.add(tf.keras.layers.Dense(512, activation='relu'))
-# model.add(tf.keras.layers.Dense(len(lbl_dict['tricolp_mix']), activation = ac_function))
 model.add(tf.keras.layers.Dense(1, activation = ac_function))
+# model.add(tf.keras.layers.Dense(len(lbl_dict['tricolp_mix']), activation = ac_function))
+
 
 model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
 
-predictions_tricolp = sub_level_prediction(masterlist_lvl2, images_lvl2, "tricolp_mix", checkpoint_tricolp, depth_index_lvl2)
+predictions_tricolp = sub_level_prediction(masterlist_lvl2, images_lvl2, "tricolp_mix", 
+                                           checkpoint_tricolp, depth_index_lvl2, temperature = 0.513)
 
-masterlist_lvl3 = update_masterlist(masterlist_lvl3, predictions_tricolp, 'tricolp_mix')
+masterlist_lvl2 = update_masterlist(masterlist_lvl2, predictions_tricolp, 'tricolp_mix')
 
 #%%
 ####################################
@@ -709,9 +748,10 @@ model.add(tf.keras.layers.Dense(len(lbl_dict['tripor_mix']), activation = ac_fun
 
 model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 
-predictions_tripor = sub_level_prediction(masterlist_lvl2, images_lvl2, "tripor_mix", checkpoint_tripor, depth_index_lvl2)
+predictions_tripor = sub_level_prediction(masterlist_lvl2, images_lvl2, "tripor_mix", 
+                                          checkpoint_tripor, depth_index_lvl2, temperature = 0.278)
 
-masterlist_lvl3 = update_masterlist(masterlist_lvl3, predictions_tripor, 'tripor_mix')
+masterlist_lvl2 = update_masterlist(masterlist_lvl2, predictions_tripor, 'tripor_mix')
 
 #%%
 ####################################
@@ -757,9 +797,9 @@ model.add(tf.keras.layers.Dense(1, activation = ac_function))
 
 model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
 
-predictions_acer = sub_level_prediction(masterlist_lvl3, images_lvl2, "acer_mix", checkpoint_tricolp, depth_index_lvl2)
+predictions_acer = sub_level_prediction(masterlist_lvl2, images_lvl2, "acer_mix", checkpoint_tricolp, depth_index_lvl2)
 
-masterlist_lvl4 = update_masterlist(masterlist_lvl3, predictions_tricolp, 'acer_mix')
+masterlist_lvl2 = update_masterlist(masterlist_lvl2, predictions_tricolp, 'acer_mix')
 
 
 #%%

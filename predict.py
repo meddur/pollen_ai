@@ -21,7 +21,7 @@ import sys
 import shutil
 
 
-checkpoint_no ="tripor_small_deeper2.2"
+checkpoint_no ="transfer_tripor_small_deep"
 checkpoint_ves = ""
 checkpoint_tri = ""
 checkpoint_alnus = ""
@@ -235,7 +235,6 @@ model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))
 model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
 model.add(tf.keras.layers.MaxPooling2D())
 model.add(tf.keras.layers.Conv2D(512, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
-model.add(tf.keras.layers.Conv2D(512, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
 model.add(tf.keras.layers.MaxPooling2D())
 model.add(tf.keras.layers.Flatten())
 model.add(tf.keras.layers.Dropout(0.5,seed=7))
@@ -290,9 +289,43 @@ print("LOADING CHECKPOINT " + latest)
 pollen_cnn = model.load_weights(latest)
 
 
-predictions_float = model.predict(images)
+
+############## TEST TEMPERATURE SCALING
+
+temperature = 0.278
+
+logits = model.predict(images)
+logits_w_temp = tf.divide(logits, temperature)
+
+scld_predict = np.exp(logits_w_temp) / np.sum(np.exp(logits_w_temp),
+                                                     axis=-1, keepdims=True)
+
+if ac_function == 'sigmoid': 
+    i = 0
+    scld_predict_per = np.zeros(shape=(len(scld_predict),), dtype='float32')
+    for value in scld_predict:
+        if value > 0:
+            scld_predict_per[i] = value*1./max(scld_predict)
+        else:
+            scld_predict_per[i] = value
+        i = i+1
+        
+else:
+    
+    scld_per = np.where(np.max(scld_predict, axis=0)==0, scld_predict,
+                                  scld_predict*1./np.max(scld_predict, axis=0))
+
+
 depth_index = depth_index[:,np.newaxis] #reshapes depth index -> allows np.append
-predictions = np.append(predictions_float, depth_index,1) #adds depth data to predictions
+predictions = np.append(scld_per, depth_index,1) #adds depth data to predictions
+
+
+
+##############
+# This code works vvvvv
+# predictions_float = model.predict(images)
+# depth_index = depth_index[:,np.newaxis] #reshapes depth index -> allows np.append
+# predictions = np.append(predictions_float, depth_index,1) #adds depth data to predictions
 
 
 
