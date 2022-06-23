@@ -365,11 +365,6 @@ def temp_scaling(logits_nps, labels_nps, sess, maxiter=50):
 
     #####################
     return temperature, scld_predict, scld_per
-
-
-# scld_per = np.where(np.max(predict_non_int, axis=0)==0, predict_non_int,
-#                               predict_non_int*1./np.max(predict_non_int, axis=0))
-
     
 # %%
 

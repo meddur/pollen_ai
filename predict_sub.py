@@ -9,15 +9,16 @@ from PIL import Image     #Case sensitive
 from skimage.transform import resize #self explanatory package=scikit-image
 from skimage.exposure import rescale_intensity #Why is this necessary?
 import sys
-
+import math
 import shutil
 import pandas as pd
 
 
 checkpoint_no ="transfer_1200_npp_trip_deep"
-checkpoint_abb_pic = "transfer_abb_pic_sigmoid"
-checkpoint_acer = ""
-checkpoint_pinus = "transfer_pinus_sigmoid_deep"
+checkpoint_abb_pic = "abb_pic_1000_val"
+checkpoint_acer = "acer"
+checkpoint_alnus = 'alnus'
+checkpoint_pinus = "pinus_val"
 checkpoint_tricolp = "tricolp_no_val_sig_normal_depth"
 checkpoint_tripor = "transfer_tripor_small_deep"
 checkpoint_path = "checkpoints/"+checkpoint_no+"/cp-{epoch:04d}.ckpt"
@@ -55,6 +56,7 @@ local_classification = True #If True, locally copies the classified data to its 
 
 local_classification_overwrite = True #This should be left on
 lvl_1_switch = True      #This should be left on 
+lvl_2_switch = True      #And so should this
 
 
 
@@ -90,7 +92,9 @@ lbl_dict = {'abb_pic_mix':["abies_b", "picea_mix"],
             'pinus_mix':['pinus_b_mix', 'pinus_s'],
             'tricolp_mix':['acer_mix', 'quercus_r'],
             'tripor_mix':['alnus_mix', 'betula_mix', 'corylus_c', 'eucalyptus'],
-            'acer_mix':['acer_r', 'acer_s']
+            'acer_mix':['acer_r', 'acer_s'],
+            'alnus_mix':['alnus_c', 'alnus_r']
+
 
     }
   
@@ -160,8 +164,6 @@ def load_from_class_dirs(directory, extension, width, norm, min_count=20):
     
     class_dirs = sorted(glob.glob(data_path + "/*")) # STRINGS DO NOT SORT THE SAME AS INTEGERS
     class_dirs.sort(key=lambda x: int(''.join(filter(str.isdigit,x)))) # SORT LIKE A HUMAN 
-    print("DON'T FORGET TO ADD A SAFETY SO THAT POLLENS DONT GET CLASSIFIED IN THE WRONG FOLDER")
-    
     
     # Load images from each class
 
@@ -215,11 +217,6 @@ def load_from_sub(directory, extension, width, norm, min_count=20):
     depth_index = []
     filenames = []
 
-
-
-
-
-    
     # Alphabetically sorted classes
     class_dirs = sorted(glob.glob(directory + "/*"))
     class_dirs.sort(key=lambda x: int(''.join(filter(str.isdigit,x)))) # SORT LIKE A HUMAN 
@@ -271,7 +268,7 @@ def load_from_sub(directory, extension, width, norm, min_count=20):
 def run_local_classification(directory, lbl_list, prediction_data, filenames_list):
     
     filename_it = 0
-    
+    print("PREDICTION DATA SHAPE", prediction_data.shape)
     #Checks if a classification folder already exists
     #If it already exists, wipe or abort
     if local_classification_overwrite == True and os.path.exists(data_path_post+"/"+ checkpoint_no) == True:
@@ -304,27 +301,40 @@ def run_local_classification(directory, lbl_list, prediction_data, filenames_lis
             
             if pollen[-1] == current_depth: # -1 is the last element in an np array
                 
-                if ac_function == 'sigmoid': #CLEAN THIS
+                if ac_function == 'sigmoid': #CLEAN THIS SPAGHETTI CODE
                     
-                    #Local classification & incrementing compilation array
-                    if local_classification == True: shutil.copy(directory+'/'+filenames_list[filename_it],
-                                current_depth_folder+'/'+lbl_list[pollen[0]])
-                    
-                    compilation[classes_select.index(current_depth)] \
-                    [lbl_final.index(lbl_list[pollen[0]])+1]+=1   
+                    binary_prob = pollen[0] #Keep probabilities intact but assign a class
+                    # binary_class = round(binary_prob)
+                    # if binary_class == 0 : binary_prob = 1-binary_prob 
+                    if binary_prob > 0.5: binary_class = 1
+                    else: 
+                        binary_class = 0
+                        binary_prob = 1-binary_prob
+                        
+                    if binary_prob >= threshold: #If the pollen is above threshold during a binary classification
+                        compilation[classes_select.index(current_depth)] \
+                        [lbl_final.index(lbl_list[binary_class])+1]+=1   #Increment its corresponding class counter
+                                                                        # And copy it
+                        if local_classification == True: shutil.copy(directory+'/'+filenames_list[filename_it], 
+                                        current_depth_folder+'/'+lbl_list[binary_class])
+                            
+                        #Else don't do anything w/ it (won't be classified as Unknown or copied on the local machine)                           
                     
                 
-                elif pollen[0:len(lbl_list)].max() <= threshold:
+                elif pollen[0:len(lbl_list)].max() <= threshold: #If the pollen is under threshold
+                                                                # During a multiclass classification
                     
                     #Local classification & incrementing compilation array
-                    if local_classification == True: shutil.copy(directory+'/'+filenames_list[filename_it], 
-                            current_depth_folder+'/unknown')
-                    
-                    compilation[classes_select.index(current_depth)][lbl_final.index('unknown')+1]+=1
+                    if lvl_2_switch == True:    #Safety --- don't classify an already classified pollen as unknown
+                        if local_classification == True: shutil.copy(directory+'/'+filenames_list[filename_it], 
+                                current_depth_folder+'/unknown')
+                        
+                        compilation[classes_select.index(current_depth)][lbl_final.index('unknown')+1]+=1
                     
                     
 
                 else:
+                    #If the pollen is above threshold during a multiclassification
                     
                     #Local classification & incrementing compilation array
                     if local_classification == True: shutil.copy(directory+'/'+filenames_list[filename_it], 
@@ -380,42 +390,41 @@ def create_masterlist (prediction_data):
     masterlist_lvl2 = np.concatenate((filenames_lvl2, pollen_index),axis = 1)
     
     return copy_index, images_lvl2, filenames_lvl2, pollen_index, depth_index_lvl2, masterlist_lvl2
+
 #%%
-
 def get_scaled_prediction (logits, temperature):
-
-    logits_w_temp = tf.divide(logits, temperature)
     
-    scld_predict = np.exp(logits_w_temp) / np.sum(np.exp(logits_w_temp),
+    if ac_function == 'sigmoid':    #If binary classification, reshape prediction array to get z, 1-z
+        binary_column = np.ones(shape = (len(logits), 1))
+        inverted_logits = np.subtract(binary_column, logits)
+        binary_logits = np.append(logits, inverted_logits, axis=1)        
+        logits_w_temp = tf.divide(binary_logits, temperature)
+        
+    else:
+        logits_w_temp = tf.divide(logits, temperature)
+
+    scld_predict = np.exp(logits_w_temp) / np.sum(np.exp(logits_w_temp),    #Scale the predictions
                                                          axis=-1, keepdims=True)
-    print(scld_predict)
+    #Predictions as percentages
     
     if ac_function == 'sigmoid': 
-        i = 0
-        scld_per = np.zeros(shape=(len(scld_predict),), dtype='float32')
-        print("got here")
-        for value in scld_predict:
-            if value > 0:
-                scld_per[i] = value*1./max(scld_predict)
-            else:
-                scld_per[i] = value
-            i = i+1
-            
+        
+        scld_per = scld_predict[:,0] 
+ 
     else:
         
         scld_per = np.where(np.max(scld_predict, axis=0)==0, scld_predict,
-                                      scld_predict*1./np.max(scld_predict, axis=0))
+                            scld_predict*1./np.max(scld_predict, axis=0))
         
-    return scld_per    
+    return scld_per, scld_predict   
 
 #%%
-def sub_level_prediction (masterlist, images, branch, checkpoint_sub, depth_index, temperature):
+def sub_level_prediction (masterlist, images, branch, checkpoint_sub, depth_index, use_latest_checkpoint, temperature):
     
     #Predicts the data from an upper level branch/node into substrata
     #Inputs: the branch name (string), the masterlist, the image data with lvl<1, their depth
     #Predicts on the corresponding images
     #Outputs prediction data for this branch
-    
     #Create sub_image list from masterlist
     
     index_extract = np.where(masterlist == branch)[0] #[filename][prediction]
@@ -425,25 +434,27 @@ def sub_level_prediction (masterlist, images, branch, checkpoint_sub, depth_inde
     depth_index_extract = np.copy(depth_index[index_extract,])
     
     #Load checkpoint && predict
-    latest = tf.train.latest_checkpoint("checkpoints/"+checkpoint_sub)
-    # latest = ("checkpoints/"+checkpoint_sub+"/cp-0300.ckpt") #Checkpoint en particulier?
+    
+    if use_latest_checkpoint == True:
+        latest = tf.train.latest_checkpoint("checkpoints/"+checkpoint_sub)
+    else:
+        latest = ("checkpoints/"+checkpoint_sub+"/cp-0"+str(use_latest_checkpoint)+".ckpt") #Checkpoint en particulier?
+        
     print("LOADING CHECKPOINT " + latest)
     
     pollen_cnn = model.load_weights(latest)
     
-    # if ac_function == 'sigmoid':    
-    #     predictions_lvl2_float = (model.predict(images_extract) >= 0.5).astype("int64")
-    #     predictions_lvl2_float = predictions_lvl2_float[0:,0]
-    #     predictions_lvl2_float = predictions_lvl2_float[:,np.newaxis]
-        
-    # else: predictions_lvl2_float = model.predict(images_extract)
-    
+ 
     
     predictions_lvl2_float = model.predict(images_extract)
-    scld_per = get_scaled_prediction(predictions_lvl2_float, temperature)
     
-    depth_index = depth_index[:,np.newaxis] #reshapes depth index -> allows np.append    
-    predictions_lvl2 = np.append(scld_per, depth_index_extract, 1) #adds depth data to predictions along the last axis
+    print("branch ", branch, "has ", len(predictions_lvl2_float), " items")
+    
+    scld_per, scld_predict = get_scaled_prediction(logits = predictions_lvl2_float, temperature = temperature)
+    
+    if ac_function == 'sigmoid': scld_per = scld_per[:,np.newaxis]
+    
+    predictions_lvl2 = np.append(scld_per, depth_index_extract, axis = -1) #adds depth data to predictions along the last axis
     
     
     run_local_classification(data_path, lbl_dict[branch], predictions_lvl2, filenames_extract)
@@ -453,27 +464,33 @@ def sub_level_prediction (masterlist, images, branch, checkpoint_sub, depth_inde
 #%%
 def update_masterlist (masterlist, prediction_data, branch):
     
-    
-    
     i = 0
 
     for pollen in masterlist:
+        
         if pollen[1] == branch:
-            pollen[1] = lbl_dict[branch][int(prediction_data[i,0])]
+            
+            if ac_function == "sigmoid":
+                
+                print(str(pollen[1]), " is now ", str(lbl_dict[branch][int(round(prediction_data[i,0]))]))
+                # pollen[1] = lbl_dict[branch][int(prediction_data[i,0])]
+                pollen[1] = lbl_dict[branch][int(round(prediction_data[i,0]))]
+            
+            else:
+                
+                print(str(pollen[1]), " is now ", str(lbl_dict[branch][int(np.argmax(prediction_data[i,:len(lbl_dict[branch])]))]))
+                pollen[1] = lbl_dict[branch][int(np.argmax(prediction_data[i,:len(lbl_dict[branch])]))]
+                    
             i = i+1
 
-    return masterlist
-                                         
+    return masterlist                                         
 
 #%%
 
 images, depth_index, filenames = load_from_class_dirs(data_path, "png", resolution, False, min_count=20)
 
-# images = images[:,:,:,np.newaxis] #4th dimension fix
-
 opt = tf.keras.optimizers.Adam()
 
-# base_model = VGG16(input_shape = (resolution, resolution, 3), weights = "imagenet", include_top=False)  
 base_model = tf.keras.applications.VGG16(input_shape = (resolution, resolution, 3),
                                           include_top = False,
                                           weights = 'imagenet')
@@ -485,7 +502,10 @@ for layer in base_model.layers[0:3]:
 base_model.trainable = False
 
 #%%
-os.environ['KMP_DUPLICATE_LIB_OK']='True' #PaleoMacOS only
+
+
+# os.environ['KMP_DUPLICATE_LIB_OK']='True' #PaleoMacOS only
+
 
 #%% 
 #########################
@@ -523,26 +543,14 @@ pollen_cnn = model.load_weights(latest)
 ######### PREDICTIONS ####################
 
 predictions_float = model.predict(images)
-scaled_predictions = get_scaled_prediction(predictions_float, temperature = 0.195)
+scaled_predictions, scld_lvl1 = get_scaled_prediction(predictions_float, temperature = 0.195)
 
 depth_index = depth_index[:,np.newaxis] #reshapes depth index -> allows np.append
 predictions = np.append(scaled_predictions, depth_index,1) #adds depth data to predictions
 
 
 
-
-
 #%%
-# filenames = np.asarray(filenames)
-# filenames = filenames[:,np.newaxis]
-# predictions_filenames = np.append(predictions_float, filenames, 1)
-
-# if local_classification == True:
-#     run_local_classification(data_path, lbl_pretty, predictions, filenames)  
-#     local_classification_overwrite = False #So that when we loop back to classify deeper branches, we don't trigger the overwrite safety
-#     lvl_0_switch = False
-
-
 run_local_classification(data_path, lbl_pretty, predictions, filenames)  
 local_classification_overwrite = False #So that when we loop back to classify deeper branches, we don't trigger the overwrite safety
 lvl_1_switch = False
@@ -560,7 +568,7 @@ depth_index_lvl2, masterlist_lvl2 = create_masterlist(predictions)
 
 print("Classifying Abies & Picea")
 
-del model# THERE COULD BE OTHER THINGS TO DELETE/ RESET THE SEED / RESET DEFAULT GRAPH
+del model
 del base_model
 
 tf.keras.backend.clear_session()
@@ -592,16 +600,18 @@ model.add(tf.keras.layers.MaxPooling2D())
 model.add(tf.keras.layers.Flatten())
 model.add(tf.keras.layers.Dropout(0.5,seed=7))
 model.add(tf.keras.layers.Dense(512, activation='relu'))
-model.add(tf.keras.layers.Dense(len(lbl_dict['abb_pic_mix']), activation = ac_function))
+model.add(tf.keras.layers.Dense(1, activation = ac_function))
 
 model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
 
 
 predictions_abb_pic = sub_level_prediction(masterlist_lvl2, images_lvl2, "abb_pic_mix", 
-                                           checkpoint_abb_pic, depth_index_lvl2, temperature = 0.392)
+                                            checkpoint_abb_pic, depth_index_lvl2, use_latest_checkpoint = 400,
+                                            temperature = 0.392)
+
+
 
 masterlist_lvl2 = update_masterlist(masterlist_lvl2, predictions_abb_pic, 'abb_pic_mix')
-
 
 #%%
 ####################################
@@ -644,12 +654,13 @@ model.add(tf.keras.layers.MaxPooling2D())
 model.add(tf.keras.layers.Flatten())
 model.add(tf.keras.layers.Dropout(0.5,seed=7))
 model.add(tf.keras.layers.Dense(1024, activation='relu'))
-model.add(tf.keras.layers.Dense(len(lbl_dict['pinus_mix']), activation = ac_function))
+model.add(tf.keras.layers.Dense(1, activation = ac_function))
 
 model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
 
 predictions_pinus = sub_level_prediction(masterlist_lvl2, images_lvl2, "pinus_mix", 
-                                         checkpoint_pinus, depth_index_lvl2, temperature = 0.45)
+                                         checkpoint_pinus, depth_index_lvl2, use_latest_checkpoint = 140,
+                                         temperature = 0.45)
 
 masterlist_lvl2 = update_masterlist(masterlist_lvl2, predictions_pinus, 'pinus_mix')
 
@@ -693,13 +704,13 @@ model.add(tf.keras.layers.Flatten())
 model.add(tf.keras.layers.Dropout(0.5,seed=7))
 model.add(tf.keras.layers.Dense(512, activation='relu'))
 model.add(tf.keras.layers.Dense(1, activation = ac_function))
-# model.add(tf.keras.layers.Dense(len(lbl_dict['tricolp_mix']), activation = ac_function))
 
 
 model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
 
 predictions_tricolp = sub_level_prediction(masterlist_lvl2, images_lvl2, "tricolp_mix", 
-                                           checkpoint_tricolp, depth_index_lvl2, temperature = 0.513)
+                                           checkpoint_tricolp, depth_index_lvl2, use_latest_checkpoint = 400,
+                                           temperature = 0.513)
 
 masterlist_lvl2 = update_masterlist(masterlist_lvl2, predictions_tricolp, 'tricolp_mix')
 
@@ -749,7 +760,8 @@ model.add(tf.keras.layers.Dense(len(lbl_dict['tripor_mix']), activation = ac_fun
 model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 
 predictions_tripor = sub_level_prediction(masterlist_lvl2, images_lvl2, "tripor_mix", 
-                                          checkpoint_tripor, depth_index_lvl2, temperature = 0.278)
+                                          checkpoint_tripor, depth_index_lvl2, use_latest_checkpoint = True,
+                                          temperature = 0.278)
 
 masterlist_lvl2 = update_masterlist(masterlist_lvl2, predictions_tripor, 'tripor_mix')
 
@@ -757,8 +769,10 @@ masterlist_lvl2 = update_masterlist(masterlist_lvl2, predictions_tripor, 'tripor
 ####################################
 #CLASSIFY ACER
 ####################################
+lvl_2_switch = False #From now on, Pollens won't be classified as unknown nor will they be locally copied
 
 print("Classifying Acer")
+
 
 del model# THERE COULD BE OTHER THINGS TO DELETE/ RESET THE SEED / RESET DEFAULT GRAPH
 del base_model
@@ -789,17 +803,75 @@ model.add(tf.keras.layers.MaxPooling2D())
 model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
 model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
 model.add(tf.keras.layers.MaxPooling2D())    
+model.add(tf.keras.layers.Conv2D(512, (3,3), activation='relu', padding='same'))
+model.add(tf.keras.layers.MaxPooling2D())    
 model.add(tf.keras.layers.Flatten())
 model.add(tf.keras.layers.Dropout(0.5,seed=7))
-model.add(tf.keras.layers.Dense(512, activation='relu'))
-# model.add(tf.keras.layers.Dense(len(lbl_dict['tricolp_mix']), activation = ac_function))
+model.add(tf.keras.layers.Dense(1024, activation='relu'))
 model.add(tf.keras.layers.Dense(1, activation = ac_function))
 
 model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
 
-predictions_acer = sub_level_prediction(masterlist_lvl2, images_lvl2, "acer_mix", checkpoint_tricolp, depth_index_lvl2)
+predictions_acer = sub_level_prediction(masterlist_lvl2, images_lvl2, "acer_mix", 
+                                        checkpoint_acer, depth_index_lvl2, use_latest_checkpoint = 280,
+                                        temperature = 0.378)
 
-masterlist_lvl2 = update_masterlist(masterlist_lvl2, predictions_tricolp, 'acer_mix')
+
+masterlist_lvl2 = update_masterlist(masterlist_lvl2, predictions_acer, 'acer_mix')
+
+#%%
+
+#%%
+####################################
+#CLASSIFY ALNUS
+####################################
+
+print("Classifying Alnus")
+
+del model# THERE COULD BE OTHER THINGS TO DELETE/ RESET THE SEED / RESET DEFAULT GRAPH
+del base_model
+
+
+tf.keras.backend.clear_session()
+tf.compat.v1.reset_default_graph()
+#reset_seeds()
+
+
+base_model = tf.keras.applications.VGG16(input_shape = (resolution, resolution, 3),
+                                          include_top = False,
+                                          weights = 'imagenet')
+
+#Lock layers
+for layer in base_model.layers[0:3]:
+    layer.trainable = False
+
+base_model.trainable = False
+
+ac_function = 'sigmoid'
+
+model = tf.keras.models.Sequential()
+
+model.add(base_model.layers[3])
+model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
+model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
+model.add(tf.keras.layers.MaxPooling2D())
+model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
+model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
+model.add(tf.keras.layers.MaxPooling2D())    
+model.add(tf.keras.layers.Flatten())
+model.add(tf.keras.layers.Dropout(0.5,seed=7))
+model.add(tf.keras.layers.Dense(512, activation='relu'))
+model.add(tf.keras.layers.Dense(1, activation = ac_function))
+
+model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
+
+
+predictions_alnus = sub_level_prediction(masterlist_lvl2, images_lvl2, "alnus_mix", 
+                                         checkpoint_alnus, depth_index_lvl2, use_latest_checkpoint = 200,
+                                         temperature = 0.309)
+
+masterlist_lvl2 = update_masterlist(masterlist_lvl2, predictions_alnus, 'alnus_mix')
+
 
 
 #%%
