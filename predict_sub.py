@@ -22,7 +22,7 @@ checkpoint_pinus = "pinus_val"
 checkpoint_tricolp = "tricolp_no_val_sig_normal_depth"
 checkpoint_tripor = "transfer_tripor_small_deep"
 checkpoint_path = "checkpoints/"+checkpoint_no+"/cp-{epoch:04d}.ckpt"
-data_path = os.getcwd()+"/images_pre_small"
+data_path = os.getcwd()+"/images_pre_1002_1065"
 data_path_post = os.getcwd()+"/images_post_class"
 
 # 280_475
@@ -30,9 +30,6 @@ data_path_post = os.getcwd()+"/images_post_class"
 # 675_867
 # 870_999
 # 1002_1065
-
-
-
 
 batch_size = 32
 resolution = 128
@@ -300,6 +297,7 @@ def run_local_classification(directory, lbl_list, prediction_data, filenames_lis
             
             
             if pollen[-1] == current_depth: # -1 is the last element in an np array
+
                 
                 if ac_function == 'sigmoid': #CLEAN THIS SPAGHETTI CODE
                     
@@ -308,22 +306,24 @@ def run_local_classification(directory, lbl_list, prediction_data, filenames_lis
                     # if binary_class == 0 : binary_prob = 1-binary_prob 
                     if binary_prob > 0.5: binary_class = 1
                     else: 
-                        binary_class = 0
+                        binary_class = 0    #if probabi
                         binary_prob = 1-binary_prob
                         
-                    if binary_prob >= threshold: #If the pollen is above threshold during a binary classification
+                    if binary_prob > threshold: #If the certitude is above threshold during a binary classification
                         compilation[classes_select.index(current_depth)] \
                         [lbl_final.index(lbl_list[binary_class])+1]+=1   #Increment its corresponding class counter
                                                                         # And copy it
                         if local_classification == True: shutil.copy(directory+'/'+filenames_list[filename_it], 
                                         current_depth_folder+'/'+lbl_list[binary_class])
                             
-                        #Else don't do anything w/ it (won't be classified as Unknown or copied on the local machine)                           
+                    #Else don't do anything w/ it (won't be classified as Unknown or copied on the local machine)
+                    #This only works because binary classifications are only used on the first level of classifications
+                    #This may cause issues on other datasets                           
                     
-                
-                elif pollen[0:len(lbl_list)].max() <= threshold: #If the pollen is under threshold
+
+                elif pollen[0:len(lbl_list)].max() < threshold: #If the pollen is under threshold
                                                                 # During a multiclass classification
-                    
+
                     #Local classification & incrementing compilation array
                     if lvl_2_switch == True:    #Safety --- don't classify an already classified pollen as unknown
                         if local_classification == True: shutil.copy(directory+'/'+filenames_list[filename_it], 
@@ -335,7 +335,8 @@ def run_local_classification(directory, lbl_list, prediction_data, filenames_lis
 
                 else:
                     #If the pollen is above threshold during a multiclassification
-                    
+
+
                     #Local classification & incrementing compilation array
                     if local_classification == True: shutil.copy(directory+'/'+filenames_list[filename_it], 
                                 current_depth_folder+'/'+lbl_list[pollen[0:len(lbl_list)].argmax()])
@@ -472,12 +473,22 @@ def update_masterlist (masterlist, prediction_data, branch):
             
             if ac_function == "sigmoid":
                 
-                print(str(pollen[1]), " is now ", str(lbl_dict[branch][int(round(prediction_data[i,0]))]))
-                # pollen[1] = lbl_dict[branch][int(prediction_data[i,0])]
-                pollen[1] = lbl_dict[branch][int(round(prediction_data[i,0]))]
-            
-            else:
+                #If the pollen prediction certitude is above threshold, update the masterlist
                 
+                binary_prob = prediction_data[i,0]
+                
+                if binary_prob > 0.5: binary_class = 1
+                
+                else:
+                    binary_class = 0
+                    binary_prob = 1-binary_prob
+                    
+                if binary_prob > threshold:
+
+                    pollen[1] = lbl_dict[branch][int(round(prediction_data[i,0]))]
+
+            elif np.max(prediction_data[i,:len(lbl_dict[branch])]) > threshold: 
+                #If the pollen prediction certitude is above threshold, update the masterlist
                 print(str(pollen[1]), " is now ", str(lbl_dict[branch][int(np.argmax(prediction_data[i,:len(lbl_dict[branch])]))]))
                 pollen[1] = lbl_dict[branch][int(np.argmax(prediction_data[i,:len(lbl_dict[branch])]))]
                     
@@ -714,6 +725,7 @@ predictions_tricolp = sub_level_prediction(masterlist_lvl2, images_lvl2, "tricol
 
 masterlist_lvl2 = update_masterlist(masterlist_lvl2, predictions_tricolp, 'tricolp_mix')
 
+
 #%%
 ####################################
 #CLASSIFY TRIPORATE
@@ -770,7 +782,7 @@ masterlist_lvl2 = update_masterlist(masterlist_lvl2, predictions_tripor, 'tripor
 #CLASSIFY ACER
 ####################################
 lvl_2_switch = False #From now on, Pollens won't be classified as unknown nor will they be locally copied
-
+acer_switch = True
 print("Classifying Acer")
 
 
@@ -816,7 +828,7 @@ predictions_acer = sub_level_prediction(masterlist_lvl2, images_lvl2, "acer_mix"
                                         checkpoint_acer, depth_index_lvl2, use_latest_checkpoint = 280,
                                         temperature = 0.378)
 
-
+masterlist_acer = np.copy(masterlist_lvl2)
 masterlist_lvl2 = update_masterlist(masterlist_lvl2, predictions_acer, 'acer_mix')
 
 #%%
