@@ -22,9 +22,10 @@ checkpoint_pinus = "pinus_val"
 checkpoint_tricolp = "tricolp_no_val_sig_normal_depth"
 checkpoint_tripor = "transfer_tripor_small_deep"
 checkpoint_path = "checkpoints/"+checkpoint_no+"/cp-{epoch:04d}.ckpt"
-data_path = os.getcwd()+"/images_pre_1002_1065"
+data_path = os.getcwd()+"/images_pre_ce/all_photos"
 data_path_post = os.getcwd()+"/images_post_class"
 
+# 260_276
 # 280_475
 # 478_673
 # 675_867
@@ -46,12 +47,13 @@ classes_select = sorted(classes_select)
 
 
 
-threshold = 0.8
+threshold = 0.51
+
 presence = True #could be used to filter if a certain level needs to be classified
 max_samples = 60000
 local_classification = True #If True, locally copies the classified data to its own classification folder
 
-local_classification_overwrite = True #This should be left on
+local_classification_overwrite = True #This should be left on #Also this doesn't work as intended
 lvl_1_switch = True      #This should be left on 
 lvl_2_switch = True      #And so should this
 
@@ -408,6 +410,8 @@ def get_scaled_prediction (logits, temperature):
                                                          axis=-1, keepdims=True)
     #Predictions as percentages
     
+    scld_predict = np.copy(logits)
+    
     if ac_function == 'sigmoid': 
         
         scld_per = scld_predict[:,0] 
@@ -418,6 +422,7 @@ def get_scaled_prediction (logits, temperature):
                             scld_predict*1./np.max(scld_predict, axis=0))
         
     return scld_per, scld_predict   
+
 
 #%%
 def sub_level_prediction (masterlist, images, branch, checkpoint_sub, depth_index, use_latest_checkpoint, temperature):
@@ -451,15 +456,28 @@ def sub_level_prediction (masterlist, images, branch, checkpoint_sub, depth_inde
     
     print("branch ", branch, "has ", len(predictions_lvl2_float), " items")
     
-    scld_per, scld_predict = get_scaled_prediction(logits = predictions_lvl2_float, temperature = temperature)
-    
-    if ac_function == 'sigmoid': scld_per = scld_per[:,np.newaxis]
-    
-    predictions_lvl2 = np.append(scld_per, depth_index_extract, axis = -1) #adds depth data to predictions along the last axis
-    
-    
-    run_local_classification(data_path, lbl_dict[branch], predictions_lvl2, filenames_extract)
+    if len(index_extract) > 0:
+        
+        if ac_function == 'softmax':
+            scld_per, scld_predict = get_scaled_prediction(logits = predictions_lvl2_float, temperature = temperature)
+            predictions_lvl2 = np.append(scld_per, depth_index_extract, axis = -1) #adds depth data to predictions along the last axis
+        
+        else: 
+            predictions_lvl2 = np.append(predictions_lvl2_float, depth_index_extract, axis = -1)
 
+        run_local_classification(data_path, lbl_dict[branch], predictions_lvl2, filenames_extract)
+        
+        
+        # scld_per, scld_predict = get_scaled_prediction(logits = predictions_lvl2_float, temperature = temperature)
+    
+        # if ac_function == 'sigmoid': scld_per = scld_per[:,np.newaxis]
+    
+        # predictions_lvl2 = np.append(scld_per, depth_index_extract, axis = -1) #adds depth data to predictions along the last axis
+
+        
+        # run_local_classification(data_path, lbl_dict[branch], predictions_lvl2, filenames_extract)
+        
+    else: predictions_lvl2 = predictions_lvl2_float
     return predictions_lvl2
 
 #%%
@@ -556,6 +574,7 @@ pollen_cnn = model.load_weights(latest)
 predictions_float = model.predict(images)
 scaled_predictions, scld_lvl1 = get_scaled_prediction(predictions_float, temperature = 0.195)
 
+
 depth_index = depth_index[:,np.newaxis] #reshapes depth index -> allows np.append
 predictions = np.append(scaled_predictions, depth_index,1) #adds depth data to predictions
 
@@ -618,8 +637,7 @@ model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
 
 predictions_abb_pic = sub_level_prediction(masterlist_lvl2, images_lvl2, "abb_pic_mix", 
                                             checkpoint_abb_pic, depth_index_lvl2, use_latest_checkpoint = 400,
-                                            temperature = 0.392)
-
+                                            temperature = 0.392) #0.392
 
 
 masterlist_lvl2 = update_masterlist(masterlist_lvl2, predictions_abb_pic, 'abb_pic_mix')
@@ -671,7 +689,7 @@ model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
 
 predictions_pinus = sub_level_prediction(masterlist_lvl2, images_lvl2, "pinus_mix", 
                                          checkpoint_pinus, depth_index_lvl2, use_latest_checkpoint = 140,
-                                         temperature = 0.45)
+                                         temperature = 0.45) #0.45
 
 masterlist_lvl2 = update_masterlist(masterlist_lvl2, predictions_pinus, 'pinus_mix')
 
@@ -721,7 +739,7 @@ model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
 
 predictions_tricolp = sub_level_prediction(masterlist_lvl2, images_lvl2, "tricolp_mix", 
                                            checkpoint_tricolp, depth_index_lvl2, use_latest_checkpoint = 400,
-                                           temperature = 0.513)
+                                           temperature = 0.513) #0.513
 
 masterlist_lvl2 = update_masterlist(masterlist_lvl2, predictions_tricolp, 'tricolp_mix')
 
@@ -773,7 +791,7 @@ model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['a
 
 predictions_tripor = sub_level_prediction(masterlist_lvl2, images_lvl2, "tripor_mix", 
                                           checkpoint_tripor, depth_index_lvl2, use_latest_checkpoint = True,
-                                          temperature = 0.278)
+                                          temperature = 0.278) #0.278
 
 masterlist_lvl2 = update_masterlist(masterlist_lvl2, predictions_tripor, 'tripor_mix')
 
@@ -892,4 +910,4 @@ header_df = lbl_final
 header_df.insert(0,'depth')
 
 
-pd.DataFrame(compilation).to_csv(data_path_post +"/"+ checkpoint_no + "/taxa_sum.csv", index = None, header=header_df)
+pd.DataFrame(compilation).to_csv(data_path_post + "/"+str(min(classes_select))+"_"+str(max(classes_select))+"_taxa_sum.csv", index = None, header=header_df)
