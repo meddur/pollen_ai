@@ -12,21 +12,23 @@ from PIL import Image     #Case sensitive
 from skimage.transform import resize #self explanatory package=scikit-image
 from skimage.exposure import rescale_intensity #Why is this necessary?
 from sklearn.model_selection import train_test_split
+from tensorflow.keras.wrappers.scikit_learn import KerasClassifier #Necessary for the above
 import matplotlib.pyplot as plt
 import itertools # Confusion Matrix
 from sklearn.metrics import confusion_matrix # Confusion Matrix
 import random #randomize files within directory
 import sys
 
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from tensorflow.keras.applications import VGG16 #utilisent RESNET_18 Olsson et al 
-from tensorflow.keras import Model
+
+# from tensorflow.keras.preprocessing.image import ImageDataGenerator
+# from tensorflow.keras.applications import VGG16 #utilisent RESNET_18 Olsson et al 
+# from tensorflow.keras import Model
 #from tensorflow.keras.applications.vgg16 import preprocess_input
 
 
 
 
-from sklearn.calibration import calibration_curve
+
 
 
 
@@ -45,18 +47,20 @@ classes_select = [
                     # "acer_mix",
                     # "acer_r",
                     # "acer_s",
-                        'alnus_mix',
+                        # 'alnus_mix',
                     # "alnus_c",
                     # "alnus_r",
-                        "betula_mix",
-                        "corylus_c",
-                        "eucalyptus",
+                        # "betula_mix",
+                        # "corylus_c",
+                        # "eucalyptus",
                         # "juni_thuya",
                         # "npp_mix",
                     # "picea_mix",
-                    # "pinus_b_mix",
+                    "pinus_b_mix",
+                    # "pinus_b_sans_resinosa",
                         # "pinus_mix",
-                    # "pinus_s",
+                        
+                    "pinus_s",
                     # "populus_d",
                     # "quercus_r",
                     # 'tricolp_mix',
@@ -98,7 +102,7 @@ add_unclass = False
 #Name of the directory
 
 
-os.chdir("/Users/mederic/Documents/python/CNN_BELA")
+# os.chdir("/Users/mederic/Documents/python/CNN_BELA")
 
 if add_unclass == True: path_folder_image = "/home/paleolab/Documents/python/CNN_BELA/pollen_dataset_w_unclass"
 else: path_folder_image = os.getcwd()+"/pollen_dataset/level_0"
@@ -107,23 +111,23 @@ else: path_folder_image = os.getcwd()+"/pollen_dataset/level_0"
 
 #Parameters
 
-max_samples = 1200
+max_samples = 200
 plot_that_shit = False
-n_epochs = 600
+n_epochs = 10
 choose_random = 20
-ac_function = "softmax" #Don't forget to change the loss function to binary_crossentropy 
+ac_function = "sigmoid" #Don't forget to change the loss function to binary_crossentropy 
 batch_size = 32
 
 simple_model = False
 
 #Checkpoint setup
 
-will_train = False       # False = load an already existing model
-will_save = False
+will_train = True       # False = load an already existing model
+will_save = True
 
 
 
-checkpoint_no ="transfer_tripor_small_deep"
+checkpoint_no ="test"
 checkpoint_path = "checkpoints/"+checkpoint_no+"/cp-{epoch:04d}.ckpt"
 
 
@@ -145,7 +149,7 @@ if will_save == True and os.path.exists(os.getcwd()+"/checkpoints/"+checkpoint_n
             os.remove(f)
     
 
-notes="test_bidon_ece"
+notes="same as pinus_val; except platt scaling "
 
 
 notes_ckpt = "Checkpoint : "+checkpoint_no+"\nResolution : " + str(resolution) + \
@@ -289,6 +293,28 @@ def plot_confusion_matrix(cm, classes, normalize=False, title='Confusion matrix'
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
     plt.tight_layout()
+#%%
+def compute_accuracy (test_images, test_labels, prediction):
+    
+    success = 0
+    fail = 0
+    
+    
+    for b in range (test_images.shape[0]):
+        if test_labels[b] == prediction [b]:
+          success =  success +1
+        else:
+          fail = fail +1    
+     
+    prob_success=round(success/len(test_labels)*100,1)
+    prob_failure=round(fail/len(test_labels)*100,1)
+    
+    print(" ")  
+    print('Pollen successfully classified  : {0}% ({1}/{2})'.format(prob_success, success,len(test_labels)))
+    print('Pollen misclassified : {0}% ({1}/{2})'.format(prob_failure, fail,len(test_labels)))
+        
+    return success, fail, prob_success, prob_failure
+
 
 #%%
 def temp_scaling(logits_nps, labels_nps, sess, maxiter=50):
@@ -301,7 +327,7 @@ def temp_scaling(logits_nps, labels_nps, sess, maxiter=50):
     
     
     
-    #Functions differently depending on the activation function and loss function chosen during training
+    #Functions differently depending on the activation function and loss function chosen during model training
     #It is necessary to reshape the logits tensor to make it fit into the function
     
     if ac_function == 'sigmoid':     #ADDED THIS
@@ -374,8 +400,7 @@ def temp_scaling(logits_nps, labels_nps, sess, maxiter=50):
 
 #Extract images
 images, cls, labels, num_classes, filenames = load_from_class_dirs(path_folder_image, "png", resolution, False, min_count=20)
-#Changed the extension to png, got an error -> im = resize var mode
-#I don't think leaving the extension as .tif did anything
+
 
 #images = images[:,:,:,np.newaxis] #4th dimension fix
 
@@ -479,28 +504,6 @@ if simple_model == True :
   model.add(tf.keras.layers.Dense(512, activation='relu'))
   model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))    
 
-
-elif resolution == 64 :
-
-  model = tf.keras.models.Sequential()
-  model.add(tf.keras.layers.Conv2D(16, (3,3), input_shape=(resolution, resolution, 1), activation='relu', padding='same'))
-  model.add(tf.keras.layers.Conv2D(16, (3,3), activation='relu', padding='same'))
-  model.add(tf.keras.layers.MaxPooling2D())
-  model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
-  model.add(tf.keras.layers.Conv2D(32, (3,3), activation='relu', padding='same'))
-  model.add(tf.keras.layers.MaxPooling2D())
-  model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
-  model.add(tf.keras.layers.Conv2D(64, (3,3), activation='relu', padding='same'))
-  model.add(tf.keras.layers.MaxPooling2D())
-  model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
-  model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
-  model.add(tf.keras.layers.MaxPooling2D())
-  model.add(tf.keras.layers.Flatten())
-  model.add(tf.keras.layers.Dropout(0.5,seed=7))
-  model.add(tf.keras.layers.Dense(512, activation='relu'))
-  model.add(tf.keras.layers.Dense(len(labels), activation=ac_function))
-  
-
 elif resolution == 128 :
     
     # model = tf.keras.models.Sequential([
@@ -532,6 +535,7 @@ elif resolution == 128 :
     model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
     model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))  # additional layer for 128x128
     model.add(tf.keras.layers.MaxPooling2D())
+    # model.add(tf.keras.layers.Conv2D(512, (3,3), activation='relu', padding='same'))
     model.add(tf.keras.layers.Conv2D(512, (3,3), activation='relu', padding='same'))
     model.add(tf.keras.layers.MaxPooling2D())
     model.add(tf.keras.layers.Flatten())
@@ -573,11 +577,11 @@ lr_callback = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.
                                                    min_delta=0.001, cooldown=5, min_lr=0)
 
 
-es_callback = tf.keras.callbacks.EarlyStopping(patience = 150, monitor = 'val_loss', verbose = 1, min_delta = 0.0001, 
+es_callback = tf.keras.callbacks.EarlyStopping(patience = 100, monitor = 'val_loss', verbose = 1, min_delta = 0.0001, 
                                                restore_best_weights=True, mode='auto')
 
 # callbacks = []
-callbacks = [es_callback]
+callbacks = [lr_callback, es_callback]
 if will_save == True: callbacks.append(cp_callback)
 
 
@@ -621,26 +625,29 @@ else: sonic = (model.predict_classes(test_images))[0:test_images.shape[0]]
     # Tests are processed faster when predictions are in here
 test_loss, test_acc = model.evaluate(test_images, test_labels, verbose=2) 
 
-success_images  = 0
-fail_images = 0  
+# success_images  = 0
+# fail_images = 0  
 
-# if ac_function == 'sigmoid':    #Binary classification // model.predict_classes is deprecated
+# # if ac_function == 'sigmoid':    #Binary classification // model.predict_classes is deprecated
      
-# else:
-for b in range (test_images.shape[0]):
-    if test_labels[b] == sonic [b]:
-      success_images =  success_images +1
-    else:
-      fail_images = fail_images +1
+# # else:
+# for b in range (test_images.shape[0]):
+#     if test_labels[b] == sonic [b]:
+#       success_images =  success_images +1
+#     else:
+#       fail_images = fail_images +1
+
 
     
-p_success= round(success_images/len(test_labels)*100,1)
-p_fail=round(fail_images/len(test_labels)*100,1)
+# p_success= round(success_images/len(test_labels)*100,1)
+# p_fail=round(fail_images/len(test_labels)*100,1)
     
-print(" ")  
-print('Pollen successuffully classified  : {0}% ({1}/{2})'.format(p_success, success_images,len(test_labels)))
-print('Pollen misclassified : {0}% ({1}/{2})'.format(p_fail, fail_images,len(test_labels)))
+# print(" ")  
+# print('Pollen successuffully classified  : {0}% ({1}/{2})'.format(p_success, success_images,len(test_labels)))
+# print('Pollen misclassified : {0}% ({1}/{2})'.format(p_fail, fail_images,len(test_labels)))
 
+
+success_images, fail_images, p_success, p_fail = compute_accuracy(test_images, test_labels, sonic)
 
 print("Test accuracy:", test_acc)
 if will_train == True:
@@ -738,43 +745,28 @@ plt.show()
 
 predict_non_int = model.predict(test_images)
 
-sys.path.insert(0, '/Users/mederic/Documents/python/temperature-scaling-tensorflow-master')
-tf.disable_eager_execution()
-# tf.reset_default_graph()
-
-# import temp_scaling
 #%%
+###################
+#CALIBRATION
+###################
 
-predict_non_int = model.predict(test_images)
-
-
+#####
+#TEMPERATURE SCALING
+####
+ 
 tf.disable_eager_execution()
 tf.reset_default_graph()
 
 temperature, scld_predict, scld_per = temp_scaling(predict_non_int, 
                                                   test_labels, tf.Session(), maxiter=50)
 
-##############################
-#ACCURACY POST SCALING
-##############################
+
 
 if ac_function == 'sigmoid':
     scld_int = (scld_per >= 0.5).astype("int64")
 else:
     scld_int = np.argmax(scld_per, axis = 1)
 
-success_images = 0
-fail_images = 0
 
-for b in range (test_images.shape[0]):
-    if test_labels[b] == scld_int [b]:
-      success_images =  success_images +1
-    else:
-      fail_images = fail_images +1
-
-p_success=round(success_images/len(test_labels)*100,1)
-p_fail=round(fail_images/len(test_labels)*100,1)
+success_images, fail_images, p_success, p_fail = compute_accuracy(test_images, test_labels, scld_int)
     
-print(" ")  
-print('Pollen successuffully classified  : {0}% ({1}/{2})'.format(p_success, success_images,len(test_labels)))
-print('Pollen misclassified : {0}% ({1}/{2})'.format(p_fail, fail_images,len(test_labels)))
