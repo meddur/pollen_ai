@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from scipy.ndimage.filters import gaussian_filter1d
 
 #%%
-# os.chdir("./documents/python/CNN_BELA/plotting/")
+os.chdir("./plot/")
 
 classes_select = [
                      # "abb_pic_mix",
@@ -42,28 +42,33 @@ classes_select = [
                     
         ] 
 #%%
-# dataframe = pd.read_csv("taxa_sum_1.csv")
 
-# bela_age = pd.read_csv('belanger_age_wrong.csv')
+######
+#Add age data
+#CODE R MARCHE AUSSI BIEN
 
-# depth = dataframe['depth']
-# depth = list(depth)
+dataframe = pd.read_csv("taxa_sum_1.csv")
+
+bela_age = pd.read_csv('belanger_age_wrong.csv')
+
+depth = dataframe['depth']
+depth = list(depth)
 
 
-# age = []
+age = []
 
-# i = 0
-# for profondeur in bela_age['depth']:
+i = 0
+for profondeur in bela_age['depth']:
     
-#     if profondeur in depth and i<808:
-#         age.append(bela_age['best'][i])
-#     i = i+1
+    if profondeur in depth and i<808:
+        age.append(bela_age['best'][i])
+    i = i+1
         
 # age.append(9904)
 # age.append(9974)
-# dataframe['age'] = age
+dataframe['age'] = age
 
-# # dataframe.to_csv("taxa_sum_age.csv", header = True, index = False)
+dataframe.to_csv("taxa_sum_age.csv", header = True, index = False)
 
 
 pollen_per = pd.read_csv("taxa_per.csv")
@@ -102,11 +107,7 @@ def plot_one_page(dataframe, y, title, smoothing):
     # plt.ylabel("valeur relative (%)")
 
     
-#%%
 
-# for taxa in classes_select:
-#     plot_with_age(pollen_per, taxa, taxa)
-#     plt.show
 #%%
 
 full_page = plt.figure()
@@ -121,3 +122,5 @@ for taxa in classes_select:
 plt.savefig('filename.png', dpi=300)
 
 plt.show()
+
+#####SUBPLOT METHOD: SEE OTHER PYTHON SCRIPT
