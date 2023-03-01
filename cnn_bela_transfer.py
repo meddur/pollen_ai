@@ -104,7 +104,7 @@ path_folder_image = os.getcwd()+"/pollen_dataset/level_0"
 #Parameters
 
 max_samples = 20
-n_epochs = 3
+n_epochs = 5
 choose_random = 20
 ac_function = "softmax"
 batch_size = 32
@@ -575,7 +575,7 @@ print("Keras layers compiled")
 
 # Load the checkpoint callback; Added to the model if will_save == True
 cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path, save_weights_only=True, \
-                                                 verbose = 1, period = 10) #period = save frequency
+                                                 verbose = 1, period = 5) #period = save frequency
 
 # Load the Reduce Learning Rate on Plateau callback;
 # Allows to further train the model if the validation loss metric plateaus
@@ -590,7 +590,12 @@ es_callback = tf.keras.callbacks.EarlyStopping(patience = 100, monitor = 'val_lo
 
 # Add the desired callbacks
 callbacks = [lr_callback, es_callback]
-if will_save == True: callbacks.append(cp_callback)
+if will_save == True: 
+    callbacks.append(cp_callback)
+    if cp_callback.period > n_epochs:
+            print("The model will train but no checkpoints will be saved - \n"
+          "Consider lowering callback period value.")
+
 
 # Fit the model/start training
 # If will_train is set to false - will load the a local checkpoint instead.
@@ -718,7 +723,7 @@ plt.show()
 # Predict on the test images (this time using model.predict)
 # model.predict_classes predicts the class (as an int)
 
-predict_non_int = model.predict(test_images)
+predict_non_int = model.predict(val_images)
 
 # Disable eager execution for compatibility; reset the graph
 # You will have to restart the kernel before running the script again
@@ -727,7 +732,7 @@ tf.disable_eager_execution()
 tf.reset_default_graph()
 
 temperature, scld_predict, scld_per = temp_scaling(predict_non_int, 
-                                                  test_labels, tf.Session(), maxiter=50)
+                                                  val_labels, tf.Session(), maxiter=50)
 
 # Generate an array of the predicted classes
 if ac_function == 'sigmoid':
@@ -750,8 +755,8 @@ else:
 # scld_threshold = get_argmax(predict_data = scld_predict, threshold = threshold)
 
 # Compute the calibrated accuracy using a threshold
-success_images, fail_images, p_success, p_fail = compute_accuracy(test_images, 
-                                                       test_labels, scld_int)
+success_images, fail_images, p_success, p_fail = compute_accuracy(val_images, 
+                                                       val_labels, scld_int)
 
 
 
