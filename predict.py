@@ -16,11 +16,12 @@ import pandas as pd
 checkpoint_no ="level_1"
 checkpoint_abb_pic = "abb_pic"
 checkpoint_acer = "acer"
-checkpoint_alnus = 'alnus_shallow_depth'
+checkpoint_alnus = 'alnus_shallow'
 checkpoint_pinus = "pinus"
 checkpoint_tricolp = "tricolp"
 checkpoint_tripor = "triporate"
-checkpoint_path = "checkpoints_small/"+checkpoint_no+"/cp-{epoch:04d}.ckpt"
+checkpoint_path = "checkpoints_saves/"+checkpoint_no+"/cp-{epoch:04d}.ckpt"
+
 
 data_path = os.getcwd()+"/fossil_test_sample" #Images to be classified
 data_path_post = os.getcwd()+"/images_post_class"   #Where the images will be copied
@@ -418,17 +419,11 @@ def sub_level_prediction (masterlist, images, branch, checkpoint_sub, depth_inde
     filenames_extract = filenames_extract.flatten()
     depth_index_extract = np.copy(depth_index[index_extract,])
     
-    #Load checkpoint && predict
+    #Load model && predict
     
-    if use_latest_checkpoint == True:
-        latest = tf.train.latest_checkpoint("checkpoints_small/"+checkpoint_sub)
-    else:
-        latest = ("checkpoints_small/"+checkpoint_sub+"/cp-0"+str(use_latest_checkpoint)+".ckpt") #Checkpoint en particulier?
-        
-    print("LOADING CHECKPOINT " + latest)
-    
-    pollen_cnn = model.load_weights(latest)
-       
+
+    model = tf.keras.models.load_model(filepath = ("checkpoints_saves/"+checkpoint_sub+"/"+checkpoint_sub+"_model"))
+
     predictions_sub_float = model.predict(images_extract)
     
     print("branch ", branch, "has ", len(predictions_sub_float), " items")
@@ -522,6 +517,7 @@ def generate_model(depth, output):
     """
     base_model = load_transfer_learning()
     model = tf.keras.models.Sequential()
+    model.add(tf.keras.Input(shape=(resolution,resolution,3))) #Add this layer when importing a model
     model.add(base_model.layers[3])
     model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
     model.add(tf.keras.layers.Conv2D(128, (3,3), activation='relu', padding='same'))
@@ -529,6 +525,7 @@ def generate_model(depth, output):
     model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))
     model.add(tf.keras.layers.Conv2D(256, (3,3), activation='relu', padding='same'))
     model.add(tf.keras.layers.MaxPooling2D())
+    
     
     if depth == "shallow":
         
@@ -550,7 +547,7 @@ def generate_model(depth, output):
 
 #%%
 
-def reset_stuff(model):
+def reset_inator(model):
     """
     Resets the session and deletes the previous model.
     This allows the script to load another model and its weights.
@@ -582,17 +579,20 @@ opt = tf.keras.optimizers.Adam()
 #%%
 
 
-os.environ['KMP_DUPLICATE_LIB_OK']='True' #MacOS only
+# os.environ['KMP_DUPLICATE_LIB_OK']='True' #MacOS (Intel) only
 
 model = generate_model(depth = "deep", output=len(classes_list))
+
 model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 
-# Load the checkpoint
-latest = tf.train.latest_checkpoint("checkpoints_small/"+checkpoint_no)
-# latest = ("checkpoints_small/"+checkpoint_no+"/cp-0300.ckpt") #Checkpoint en particulier?
+# Load the model save
 
-print("LOADING CHECKPOINT " + latest)
-pollen_cnn = model.load_weights(latest)
+
+model = tf.keras.models.load_model(os.path.dirname(checkpoint_path)+"/"
+                                           +checkpoint_no+"_model")
+
+
+
 
 
 #%%
@@ -626,7 +626,6 @@ lvl_1_switch = False
 images_sub, filenames_sub, depth_index_sub, masterlist_sub = create_masterlist(predictions)
 
 
-# I'm lazy; I'll just copy and paste
 
 #%%
 ####################################
@@ -635,15 +634,17 @@ images_sub, filenames_sub, depth_index_sub, masterlist_sub = create_masterlist(p
 
 print("Classifying Abies & Picea")
 
-reset_stuff(model)
+reset_inator(model)
 
 model = generate_model(depth = "deep", output=len(lbl_dict['abb_pic_mix']))
 model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 
 
+
+
 predictions_abb_pic = sub_level_prediction(masterlist_sub, images_sub, "abb_pic_mix", 
                                             checkpoint_abb_pic, depth_index_sub, use_latest_checkpoint = True,
-                                            temperature = 0.345) #0.392
+                                            temperature = 0.345)
 
 
 masterlist_sub = update_masterlist(masterlist_sub, predictions_abb_pic, 'abb_pic_mix')
@@ -655,14 +656,14 @@ masterlist_sub = update_masterlist(masterlist_sub, predictions_abb_pic, 'abb_pic
 
 print("Classifying Pinus")
 
-reset_stuff(model)
+reset_inator(model)
 
 model = generate_model(depth = "deep", output=len(lbl_dict['pinus_mix']))
 model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 
 predictions_pinus = sub_level_prediction(masterlist_sub, images_sub, "pinus_mix", 
                                          checkpoint_pinus, depth_index_sub, use_latest_checkpoint = True,
-                                         temperature = 0.348) #0.45
+                                         temperature = 0.348)
 
 masterlist_sub = update_masterlist(masterlist_sub, predictions_pinus, 'pinus_mix')
 
@@ -673,14 +674,14 @@ masterlist_sub = update_masterlist(masterlist_sub, predictions_pinus, 'pinus_mix
 
 print("Classifying Tricolporate")
 
-reset_stuff(model)
+reset_inator(model)
 
 model = generate_model(depth = "deep", output=len(lbl_dict['tricolp_mix']))
 model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 
 predictions_tricolp = sub_level_prediction(masterlist_sub, images_sub, "tricolp_mix", 
                                            checkpoint_tricolp, depth_index_sub, use_latest_checkpoint = 550,
-                                           temperature = 0.486) #0.513
+                                           temperature = 0.486)
 
 masterlist_sub = update_masterlist(masterlist_sub, predictions_tricolp, 'tricolp_mix')
 
@@ -692,14 +693,14 @@ masterlist_sub = update_masterlist(masterlist_sub, predictions_tricolp, 'tricolp
 
 print("Classifying Triporate")
 
-reset_stuff(model)
+reset_inator(model)
 
 model = generate_model(depth = "deep", output=len(lbl_dict['tripor_mix']))
 model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 
 predictions_tripor = sub_level_prediction(masterlist_sub, images_sub, "tripor_mix", 
                                           checkpoint_tripor, depth_index_sub, use_latest_checkpoint = True,
-                                          temperature = 0.278) #0.278
+                                          temperature = 0.278)
 
 masterlist_sub = update_masterlist(masterlist_sub, predictions_tripor, 'tripor_mix')
 
@@ -711,7 +712,7 @@ lvl_2_switch = False #From now on, Pollens won't be classified as unknown nor wi
 
 print("Classifying Acer")
 
-reset_stuff(model)
+reset_inator(model)
 
 model = generate_model(depth = "deep", output=len(lbl_dict['acer_mix']))
 model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
@@ -731,7 +732,7 @@ masterlist_sub = update_masterlist(masterlist_sub, predictions_acer, 'acer_mix')
 
 print("Classifying Alnus")
 
-reset_stuff(model)
+reset_inator(model)
 
 model = generate_model(depth = "shallow", output=len(lbl_dict['alnus_mix']))
 model.compile(loss='sparse_categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
@@ -742,7 +743,6 @@ predictions_alnus = sub_level_prediction(masterlist_sub, images_sub, "alnus_mix"
                                          temperature = 0.309)
 
 masterlist_sub = update_masterlist(masterlist_sub, predictions_alnus, 'alnus_mix')
-
 
 
 #%%

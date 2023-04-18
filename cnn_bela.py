@@ -65,15 +65,16 @@ classes_select = [
 
 
 #Name of the directory
+# Your dataset here
+path_folder_image = os.getcwd()+"/pollen_dataset/your_dataset_here"
 
-path_folder_image = os.getcwd()+"/pollen_dataset/triporate"
 
 
 
 #Parameters
 
-max_samples = 120
-n_epochs = 50
+max_samples = 110
+n_epochs = 600
 choose_random = 20
 ac_function = "softmax"
 batch_size = 32
@@ -84,33 +85,34 @@ use_deep_model = True
 
 will_train = True       # False = load an already existing model
 will_save = True
+load_weights = False # True: load weights directly instead of loading the model object
 threshold = 0.7
 
 checkpoint_no ="triporate"
-checkpoint_path = "checkpoints_small/"+checkpoint_no+"/cp-{epoch:04d}.ckpt"
+checkpoint_path = "checkpoints_saves/"+checkpoint_no+"/cp-{epoch:04d}.ckpt"
 
 
-latest = tf.train.latest_checkpoint("checkpoints_small/"+checkpoint_no)
-# latest = ("checkpoints_small/"+checkpoint_no+"/cp-0280.ckpt") # Use to load a specific checkpoint instead of the default
+latest = tf.train.latest_checkpoint("checkpoints_saves/"+checkpoint_no)
+# latest = ("checkpoints_saves/"+checkpoint_no+"/cp-0550.ckpt") # Use to load a specific checkpoint instead of the default
 
 #########################################################################
 
 
 
-if will_save == True and os.path.exists(os.getcwd()+"/checkpoints_small/"+
+if will_save == True and os.path.exists(os.getcwd()+"/checkpoints_saves/"+
                                         checkpoint_no) == True:
 
     overwrite_check = input("Checkpoint already exists. Overwrite (y/n)?")
     if overwrite_check != "y": 
         sys.exit('Error : Checkpoint folder already exists. Aborting')
     else:
-        directory_wipe = glob.glob(os.getcwd()+"checkpoints_small/"+
+        directory_wipe = glob.glob(os.getcwd()+"checkpoints_saves/"+
                                    checkpoint_no+"/*")
         for f in directory_wipe:         
             os.remove(f)
     
 
-notes="same as pinus_val; except platt scaling "
+notes=""
 
 
 
@@ -543,12 +545,13 @@ print("Keras layers compiled")
 # ======================
 
 # Load the checkpoint callback; Added to the model if will_save == True
+# Saves the weights during training
 cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path, save_weights_only=True, \
                                                  verbose = 1, period = 5) #period = save frequency
 
 # Load the Reduce Learning Rate on Plateau callback;
 # Allows to further train the model if the validation loss metric plateaus
-lr_callback = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.1, \
+lr_callback = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.2, \
                                                    patience=20, verbose = 1, mode='auto', \
                                                    min_delta=0.001, cooldown=5, min_lr=0)
 
@@ -588,16 +591,28 @@ if will_train == True:
     plt.plot(accuracy)
     plt.legend(['loss', 'accuracy'])
     
-    # Save the graph in the training folder
-    if will_save == True: plt.savefig(os.path.dirname(checkpoint_path)+"/training_graph.png")
+    # Save the graph and the model in the training folder
+    if will_save == True: 
+        plt.savefig(os.path.dirname(checkpoint_path)+"/training_graph.png")
+        model.save(os.path.dirname(checkpoint_path)+"/"+checkpoint_no+"_model")
+        print("Model saved at "+checkpoint_path+"/"+checkpoint_no+"_model")
+        
     plt.show()
     print("Training graph plotted")
+    
+
 
 else:
 
-    print("LOADING CHECKPOINT " + latest)
-    pollen_cnn = model.load_weights(latest)    
 
+    if load_weights == True:
+        print("LOADING CHECKPOINT " + latest)
+        pollen_cnn  = model.load_weights(latest)
+        
+    else:
+        print("Model loaded")
+        model = tf.keras.models.load_model(os.path.dirname(checkpoint_path)+"/"
+                                           +checkpoint_no+"_model")
 
 #%%
 
@@ -635,10 +650,10 @@ if will_save == True and will_train == True:
             "\nTest accuracy : "+str(test_acc)+"\nMin. training loss : "+str(min(loss))+\
                 " at epoch n "+str(1+(loss.index(min(loss))))+"\nMax accuracy : "+\
                     str(max(accuracy))+" at epoch n "+str(1+(accuracy.index(max(accuracy))))
-    file1= open("checkpoints_small/"+checkpoint_no+"/"+"notes_"+checkpoint_no+".txt", "w")
+    file1= open("checkpoints_saves/"+checkpoint_no+"/"+"notes_"+checkpoint_no+".txt", "w")
     file1.write(notes_ckpt)
     file1.close()
-    print("Model saved") 
+    print("Training notes saved") 
 
 
 #%%
@@ -675,6 +690,7 @@ plt.yticks(lbl_positions, classes_select)
 if will_save == True: plt.savefig(os.path.dirname(checkpoint_path)+"/normalized_confusion_matrix.png")
     
 plt.show()
+
 
 
 #%%
