@@ -33,3 +33,4 @@ dvc pull
 # If authorized, the models will be downloaded in /CNN_BELA/checkpoints_saves
 ```
 
+Additional data (training images, classification results) can be found here: https://osf.io/t2xns/
