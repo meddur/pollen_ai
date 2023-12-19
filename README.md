@@ -1,6 +1,6 @@
 # pollen_ai
 
-This repo contains the training and prediction python scripts as used in xxx 
+This repo contains the training and prediction python scripts as used in https://doi.org/1866/28706  
 
 The prediction script should be plug and play once the dependencies are installed. Notably:
 
