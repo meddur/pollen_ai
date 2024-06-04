@@ -1,6 +1,9 @@
-# pollen_ai
+[![DOI PLOS ONE](https://img.shields.io/badge/PLOS%20ONE-10.1371%2Fjournal.pone.0295474-BD3094)](https://doi.org/10.1371/journal.pone.0302424)
+[![License: CC BY 4.0](https://img.shields.io/badge/License-CC_BY_4.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
 
-This repo contains the training and prediction python scripts as used in https://doi.org/1866/28706  
+## pollen_ai
+
+This repo contains the training and prediction python scripts as used in https://doi.org/10.1371/journal.pone.0302424
 
 The prediction script should be plug and play once the dependencies are installed. Notably:
 
